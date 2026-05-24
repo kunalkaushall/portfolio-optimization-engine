@@ -1,9 +1,10 @@
 """
 ================================================================================
-  MARKOWITZ MEAN-VARIANCE OPTIMIZATION  |  INSTITUTIONAL QUANT TERMINAL
+  MARKOWITZ MEAN-VARIANCE OPTIMIZATION  |  PORTFOLIO ANALYTICS TERMINAL
   ───────────────────────────────────────────────────────────────────────
   Developed  : Kunal Kaushal
   Programme  : Advanced Financial Analytics — IIT Kanpur (NPTEL / Swayam)
+  Version    : v3.0  |  IIT Kanpur NPTEL Capstone
   ───────────────────────────────────────────────────────────────────────
   Engine     : SciPy SLSQP  ·  Monte Carlo 5,000  ·  Historical VaR/CVaR
   Fallback   : Synthetic MVN (756 days)  ·  Tikhonov regularisation (lam=1e-6)
@@ -17,7 +18,7 @@
   §3  Math Backend     — Tikhonov-regularised covariance, SLSQP solvers,
                          Monte Carlo simulation, Historical VaR / CVaR
   §4  Plotting Layer   — interactive Plotly dark-terminal efficient frontier
-  §5  Streamlit UI     — 3-tab layout: Overview | Quant Terminal | Report
+  §5  Streamlit UI     — 3-tab layout: Overview | Portfolio Optimization | Insights
 
   Mathematical Foundations
   ────────────────────────
@@ -49,7 +50,7 @@ from datetime       import datetime, timedelta
 #  PAGE CONFIG  (must be the very first Streamlit call)
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title            = "Markowitz MVO | Quant Terminal",
+    page_title            = "Portfolio Analytics | Kunal Kaushal",
     page_icon             = "◈",
     layout                = "wide",
     initial_sidebar_state = "expanded",
@@ -59,31 +60,20 @@ st.set_page_config(
 #  §A  NIFTY SECTOR POOL  — 55-ticker NSE universe
 # ─────────────────────────────────────────────────────────────────────────────
 NIFTY_SECTOR_POOL: list[str] = [
-    # Banking & Financial Services
     "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS",     "AXISBANK.NS",  "KOTAKBANK.NS",
     "INDUSINDBK.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS", "HDFCLIFE.NS", "SBILIFE.NS",
     "IRFC.NS",     "JIOFIN.NS",
-    # Information Technology
     "TCS.NS",      "INFY.NS",     "HCLTECH.NS",   "WIPRO.NS",     "TECHM.NS",
-    # Energy & Oil/Gas
     "RELIANCE.NS", "ONGC.NS",     "BPCL.NS",      "NTPC.NS",      "POWERGRID.NS",
     "COALINDIA.NS","SUZLON.NS",
-    # Automobiles
     "TATAMOTORS.NS","MARUTI.NS",  "M&M.NS",       "EICHERMOT.NS", "HEROMOTOCO.NS",
     "BAJAJ-AUTO.NS",
-    # Infrastructure & Capital Goods
     "LT.NS",       "ADANIENT.NS", "ADANIPORTS.NS","BEL.NS",       "HAL.NS",
-    # Pharmaceuticals & Healthcare
     "SUNPHARMA.NS","DRREDDY.NS",  "CIPLA.NS",     "APOLLOHOSP.NS","DIVISLAB.NS",
-    # FMCG & Consumer Staples
     "HINDUNILVR.NS","ITC.NS",     "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS",
-    # Consumer Discretionary
     "TITAN.NS",    "ASIANPAINT.NS","ZOMATO.NS",   "TRENT.NS",
-    # Telecom
     "BHARTIARTL.NS",
-    # Cement & Materials
     "ULTRACEMCO.NS","GRASIM.NS",
-    # Metals & Mining
     "TATASTEEL.NS","JSWSTEEL.NS", "HINDALCO.NS",
 ]
 
@@ -151,15 +141,28 @@ _INDIAN_HINTS = {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  GLOBAL CSS  — institutional dark terminal aesthetic
+#  GLOBAL CSS
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 /* ── canvas ───────────────────────────────────────────────────────────── */
 [data-testid="stAppViewContainer"] { background:#08080f; }
-[data-testid="stSidebar"]          { background:#0c0c18;
-                                     border-right:1px solid #18183a; }
+[data-testid="stSidebar"]          { background:#0a0a16;
+                                     border-right:1px solid #14143a; }
 [data-testid="stHeader"]           { background:#08080f; }
+
+/* ── disclaimer banner ────────────────────────────────────────────────── */
+.disclaimer-banner {
+    background    : #0e0e1a;
+    border        : 1px solid #1e1e3a;
+    border-left   : 3px solid #3a3a6a;
+    border-radius : 0 6px 6px 0;
+    padding       : 8px 16px;
+    font-size     : 0.72rem;
+    color         : #55557a !important;
+    letter-spacing: 0.04em;
+    margin-bottom : 14px;
+}
 
 /* ── scrollbars ───────────────────────────────────────────────────────── */
 [data-testid="stSidebar"] > div:first-child { overflow-y:auto; height:100vh; }
@@ -179,31 +182,31 @@ st.markdown("""
 button[data-baseweb="tab"] {
     background    : transparent !important;
     border-bottom : 2px solid transparent !important;
-    color         : #555580 !important;
-    font-size     : 0.82rem !important;
+    color         : #44446a !important;
+    font-size     : 0.80rem !important;
     font-weight   : 600 !important;
-    letter-spacing: 0.06em !important;
+    letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
-    padding       : 10px 22px !important;
+    padding       : 10px 24px !important;
     transition    : all 0.2s ease !important;
 }
 button[data-baseweb="tab"]:hover {
-    color         : #9090cc !important;
-    border-bottom : 2px solid #3a3a80 !important;
+    color         : #8080bb !important;
+    border-bottom : 2px solid #2a2a70 !important;
 }
 button[data-baseweb="tab"][aria-selected="true"] {
-    color         : #c0c8ff !important;
-    border-bottom : 2px solid #5555cc !important;
-    background    : #0e0e20 !important;
+    color         : #a0a8ff !important;
+    border-bottom : 2px solid #4444aa !important;
+    background    : #0c0c1e !important;
 }
 
 /* ── metric cards ─────────────────────────────────────────────────────── */
 [data-testid="metric-container"] {
-    background    : #0e0e1e;
-    border        : 1px solid #1e1e40;
+    background    : #0d0d1c;
+    border        : 1px solid #1c1c3c;
     border-radius : 10px;
     padding       : 14px 18px;
-    box-shadow    : 0 2px 10px rgba(20,20,70,0.3);
+    box-shadow    : 0 2px 10px rgba(15,15,60,0.3);
     transition    : all 0.3s cubic-bezier(0.4,0,0.2,1);
     position      : relative;
     overflow      : hidden;
@@ -212,169 +215,263 @@ button[data-baseweb="tab"][aria-selected="true"] {
     content    : '';
     position   : absolute;
     top:0; left:0; right:0; height:2px;
-    background : linear-gradient(90deg, #2a2a88, #5555cc, #00BFFF);
+    background : linear-gradient(90deg, #222266, #4444aa, #4488cc);
     opacity    : 0;
     transition : opacity 0.3s ease;
 }
 [data-testid="metric-container"]:hover {
-    border-color : #2e2e70;
-    box-shadow   : 0 4px 20px rgba(50,50,140,0.35);
+    border-color : #2a2a60;
+    box-shadow   : 0 4px 20px rgba(40,40,120,0.35);
     transform    : translateY(-1px);
 }
 [data-testid="metric-container"]:hover::before { opacity:1; }
 [data-testid="metric-container"] label {
-    color         : #5a5a8a !important;
-    font-size     : 0.72rem;
-    letter-spacing: 0.06em;
+    color         : #4a4a7a !important;
+    font-size     : 0.70rem;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
 }
 [data-testid="metric-container"] [data-testid="stMetricValue"] {
-    color        : #dde0f8;
-    font-size    : 1.18rem;
+    color        : #d8dcf8;
+    font-size    : 1.15rem;
     font-weight  : 700;
-    letter-spacing: 0.01em;
 }
 [data-testid="metric-container"] [data-testid="stMetricDelta"] {
-    font-size: 0.75rem;
+    font-size: 0.73rem;
 }
 
-/* ── multiselect & inputs ─────────────────────────────────────────────── */
+/* ── inputs ───────────────────────────────────────────────────────────── */
 [data-testid="stMultiSelect"] > div {
-    background  : #0e0e1e !important;
-    border      : 1px solid #20205a !important;
+    background  : #0d0d1c !important;
+    border      : 1px solid #1e1e4a !important;
     border-radius: 8px !important;
 }
 [data-testid="stMultiSelect"] span[data-baseweb="tag"] {
-    background  : #1a1a55 !important;
-    border      : 1px solid #2e2e80 !important;
-    border-radius: 5px !important;
-    color       : #b0b4ff !important;
+    background  : #181855 !important;
+    border      : 1px solid #2a2a70 !important;
+    border-radius: 4px !important;
+    color       : #9090cc !important;
     font-size   : 0.70rem !important;
 }
-[data-testid="stMultiSelect"] span[data-baseweb="tag"] svg { fill:#7070bb !important; }
+[data-testid="stMultiSelect"] span[data-baseweb="tag"] svg { fill:#5555aa !important; }
 [data-testid="stSelectbox"] > div > div {
-    background  : #0e0e1e !important;
-    border      : 1px solid #20205a !important;
+    background  : #0d0d1c !important;
+    border      : 1px solid #1e1e4a !important;
     border-radius: 8px !important;
-    color       : #b0b4ff !important;
+    color       : #9090cc !important;
 }
 [data-testid="stTextInput"] input {
-    background  : #0e0e1e !important;
-    border      : 1px solid #20205a !important;
+    background  : #0d0d1c !important;
+    border      : 1px solid #1e1e4a !important;
     border-radius: 8px !important;
-    color       : #d0d4ff !important;
+    color       : #c0c4ff !important;
 }
 [data-testid="stExpander"] {
-    background  : #0c0c1e !important;
-    border      : 1px solid #18183a !important;
+    background  : #0c0c1a !important;
+    border      : 1px solid #16163a !important;
     border-radius: 8px !important;
 }
 [data-testid="stDataFrame"] {
-    border      : 1px solid #1e1e40;
+    border      : 1px solid #1a1a3a;
     border-radius: 8px;
 }
 
 /* ── typography ───────────────────────────────────────────────────────── */
-h1 { color:#c0c8ff !important; font-size:1.7rem !important; letter-spacing:-0.01em !important; }
-h2 { color:#8888cc !important; font-size:1.15rem !important; letter-spacing:0.04em !important;
+h1 { color:#a0a8ff !important; font-size:1.65rem !important; letter-spacing:-0.01em !important; }
+h2 { color:#6868aa !important; font-size:1.0rem !important; letter-spacing:0.08em !important;
      text-transform:uppercase !important; }
-h3 { color:#6868aa !important; font-size:1.0rem !important; }
-p, li, label, span, div { color:#bbbdd6 !important; }
-hr { border-color:#141430; }
-code { color:#88ccff !important; background:#0e0e28 !important; }
+h3 { color:#5050888 !important; font-size:0.96rem !important; }
+p, li, label, span, div { color:#a8aac8 !important; }
+hr { border-color:#10103a; }
+code { color:#6699ee !important; background:#0c0c22 !important; }
+strong { color:#c0c4f0 !important; }
 
 /* ── run button ───────────────────────────────────────────────────────── */
 [data-testid="stButton"] > button {
-    background  : linear-gradient(135deg,#252580,#3838aa);
-    color       : #ffffff;
-    border      : 1px solid #3a3a88;
+    background  : linear-gradient(135deg,#1e1e66,#2e2e88);
+    color       : #c0c8ff;
+    border      : 1px solid #2e2e70;
     border-radius: 8px;
     font-weight : 600;
     padding     : 10px 0;
     width       : 100%;
-    letter-spacing: 0.05em;
-    font-size   : 0.82rem;
-    transition  : all .2s;
+    letter-spacing: 0.08em;
+    font-size   : 0.80rem;
+    transition  : all .25s;
 }
 [data-testid="stButton"] > button:hover {
-    background  : linear-gradient(135deg,#303090,#4545bb);
-    box-shadow  : 0 0 18px rgba(60,60,180,0.35);
+    background  : linear-gradient(135deg,#262688,#3838aa);
+    border-color: #4444aa;
+    box-shadow  : 0 0 16px rgba(50,50,160,0.4);
+    color       : #ffffff;
 }
 
 /* ── sector pills ─────────────────────────────────────────────────────── */
 .sector-pill {
     display      : inline-block;
-    background   : #14143a;
-    border       : 1px solid #28286a;
+    background   : #10103a;
+    border       : 1px solid #22225a;
     border-radius: 3px;
     padding      : 1px 6px;
-    font-size    : 0.67rem;
-    color        : #8888cc !important;
+    font-size    : 0.65rem;
+    color        : #6666aa !important;
     margin-right : 3px;
     margin-bottom: 3px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }
 
 /* ── lookback warning ─────────────────────────────────────────────────── */
 .lookback-warn {
-    background  : #18110a;
-    border      : 1px solid #443300;
+    background  : #14100a;
+    border      : 1px solid #3a2a00;
     border-radius: 6px;
     padding     : 6px 10px;
-    font-size   : 0.73rem;
-    color       : #bbaa44 !important;
+    font-size   : 0.72rem;
+    color       : #998833 !important;
     margin-top  : 4px;
 }
 
-/* ── capital allocation panel ─────────────────────────────────────────── */
-.alloc-panel {
+/* ── chart caption ────────────────────────────────────────────────────── */
+.chart-caption {
     background    : #0c0c1e;
-    border        : 1px solid #1e1e44;
-    border-radius : 10px;
-    padding       : 18px 22px;
+    border        : 1px solid #18184a;
+    border-left   : 3px solid #3333aa;
+    border-radius : 0 6px 6px 0;
+    padding       : 10px 16px;
+    font-size     : 0.82rem;
+    color         : #7070aa !important;
+    margin-bottom : 8px;
+    line-height   : 1.6;
 }
-.alloc-header-sharpe {
-    font-size     : 0.72rem;
+
+/* ── decision box ─────────────────────────────────────────────────────── */
+.decision-box {
+    background    : #0c0c20;
+    border        : 1px solid #20205a;
+    border-radius : 10px;
+    padding       : 18px 24px;
+    margin-bottom : 20px;
+}
+.decision-box-title {
+    font-size     : 0.65rem;
     font-weight   : 700;
-    letter-spacing: 0.1em;
-    color         : #EF5350 !important;
+    letter-spacing: 0.14em;
+    color         : #4444aa !important;
     text-transform: uppercase;
-    border-bottom : 1px solid #2a1a1a;
+    margin-bottom : 14px;
+}
+.decision-pill-growth {
+    display       : inline-block;
+    background    : #1a1030;
+    border        : 1px solid #4a2a70;
+    border-radius : 6px;
+    padding       : 10px 16px;
+    margin-right  : 10px;
+    margin-bottom : 8px;
+    font-size     : 0.80rem;
+}
+.decision-pill-safety {
+    display       : inline-block;
+    background    : #0a1e1c;
+    border        : 1px solid #1a5050;
+    border-radius : 6px;
+    padding       : 10px 16px;
+    margin-right  : 10px;
+    margin-bottom : 8px;
+    font-size     : 0.80rem;
+}
+
+/* ── allocation headers ───────────────────────────────────────────────── */
+.alloc-header-sharpe {
+    font-size     : 0.68rem;
+    font-weight   : 700;
+    letter-spacing: 0.12em;
+    color         : #cc4444 !important;
+    text-transform: uppercase;
+    border-bottom : 1px solid #2a1414;
     padding-bottom: 6px;
     margin-bottom : 12px;
 }
 .alloc-header-minvar {
-    font-size     : 0.72rem;
+    font-size     : 0.68rem;
     font-weight   : 700;
-    letter-spacing: 0.1em;
-    color         : #26A69A !important;
+    letter-spacing: 0.12em;
+    color         : #2a8a80 !important;
     text-transform: uppercase;
-    border-bottom : 1px solid #1a2a2a;
+    border-bottom : 1px solid #142222;
     padding-bottom: 6px;
     margin-bottom : 12px;
 }
+
+/* ── overview block ───────────────────────────────────────────────────── */
 .overview-block {
     background    : #0c0c1e;
-    border        : 1px solid #1e1e44;
-    border-left   : 3px solid #3a3aaa;
+    border        : 1px solid #1a1a40;
+    border-left   : 3px solid #2a2a88;
     border-radius : 0 8px 8px 0;
     padding       : 18px 24px;
-    margin-bottom : 18px;
-    line-height   : 1.75;
+    margin-bottom : 16px;
+    line-height   : 1.8;
 }
+
+/* ── report card ──────────────────────────────────────────────────────── */
 .report-card {
     background    : #0c0c1e;
-    border        : 1px solid #1e1e44;
+    border        : 1px solid #1a1a40;
     border-radius : 10px;
     padding       : 20px 26px;
     margin-bottom : 18px;
 }
 .report-card h4 {
-    color         : #8888cc !important;
-    font-size     : 0.68rem !important;
-    letter-spacing: 0.12em;
+    color         : #5555aa !important;
+    font-size     : 0.65rem !important;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     margin-bottom : 10px;
+    border-bottom : 1px solid #16163a;
+    padding-bottom: 6px;
+}
+
+/* ── pull quote ───────────────────────────────────────────────────────── */
+.pull-quote {
+    font-size     : 1.4rem;
+    font-weight   : 700;
+    color         : #a0a8ff !important;
+    letter-spacing: -0.02em;
+    margin        : 10px 0 4px 0;
+    line-height   : 1.2;
+}
+.pull-quote-label {
+    font-size     : 0.65rem;
+    color         : #44447a !important;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom : 12px;
+}
+
+/* ── progress bar risk label ──────────────────────────────────────────── */
+.risk-bar-wrap {
+    background    : #10102a;
+    border-radius : 4px;
+    height        : 6px;
+    width         : 100%;
+    margin        : 6px 0 2px 0;
+    overflow      : hidden;
+}
+.risk-bar-fill-low  { height:6px; border-radius:4px; background:#26A69A; }
+.risk-bar-fill-mid  { height:6px; border-radius:4px; background:#FFB300; }
+.risk-bar-fill-high { height:6px; border-radius:4px; background:#EF5350; }
+
+/* ── identity wordmark ────────────────────────────────────────────────── */
+.wordmark {
+    font-size     : 0.62rem;
+    letter-spacing: 0.18em;
+    color         : #28285a !important;
+    text-transform: uppercase;
+    font-family   : monospace;
+    margin-top    : -10px;
+    margin-bottom : 18px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -385,8 +482,7 @@ code { color:#88ccff !important; background:#0e0e28 !important; }
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _repair_tickers(raw: str) -> list[str]:
-    """Parse free-text ticker input and return a cleaned, deduplicated list.
-    Bare Indian names (e.g. WIPRO) become WIPRO.NS automatically."""
+    """Parse free-text ticker input; bare Indian names get .NS appended."""
     tokens = [
         t.strip().upper()
         for t in raw.replace(",", "\n").splitlines()
@@ -402,7 +498,7 @@ def _repair_tickers(raw: str) -> list[str]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §2  DATA LAYER  — live download with synthetic fallback
+#  §2  DATA LAYER
 # ══════════════════════════════════════════════════════════════════════════════
 
 @st.cache_data(show_spinner=False, ttl=3_600)
@@ -429,17 +525,7 @@ def _synthetic_prices(
     n_days  : int = SIM_DAYS,
     seed    : int = RANDOM_SEED,
 ) -> pd.DataFrame:
-    """Generate synthetic price DataFrame via multivariate normal log-return
-    simulation — offline-resilient fallback engine.
-
-    Methodology:
-    1. Draw mu_i ~ U(8%,28%) and sigma_i ~ U(12%,38%) per asset.
-    2. One-factor correlation: C_ij = beta_i * beta_j * 0.5 (off-diagonal).
-    3. Convert correlation to covariance: Sigma = D * C * D.
-    4. Cholesky decomposition of daily Sigma.
-    5. Simulate: r_t = mu/252 + L * z_t, z_t ~ N(0,I).
-    6. Cumulative exponentiation -> price paths anchored at 100.
-    """
+    """Synthetic price DataFrame via multivariate-normal log-return simulation."""
     rng = np.random.default_rng(seed)
     n   = len(tickers)
 
@@ -470,13 +556,8 @@ def load_price_data(
     lookback_days: int,
     lookback_label: str,
 ) -> tuple[pd.DataFrame, bool, str]:
-    """Master data-loading: attempts live yfinance first, falls back to
-    synthetic MVN on any failure or insufficient rows.
-
-    CRITICAL dropna guard: raw.dropna(axis=1, how='all').dropna() removes
-    all-NaN ticker columns first, then drops any rows with remaining NaN,
-    guaranteeing a clean rectangular matrix before any covariance math.
-    """
+    """Live yfinance download with synthetic MVN fallback.
+    CRITICAL dropna guard prevents matmul dimension errors."""
     n_assets = len(tickers)
     min_rows = max(n_assets + 2, _MIN_ROWS_FLOOR)
 
@@ -486,9 +567,7 @@ def load_price_data(
         raw = raw.dropna(axis=1, how="all").dropna()
 
         if raw.shape[1] < 2:
-            raise ValueError(
-                f"Fewer than 2 tickers returned data for '{lookback_label}'."
-            )
+            raise ValueError(f"Fewer than 2 tickers returned data for '{lookback_label}'.")
         if raw.shape[0] < min_rows:
             raise ValueError(
                 f"Only {raw.shape[0]} trading day(s) for '{lookback_label}' "
@@ -514,54 +593,34 @@ def load_price_data(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def log_returns_df(prices: pd.DataFrame) -> pd.DataFrame:
-    """Daily logarithmic returns: r_t = ln(P_t / P_{t-1})."""
     return np.log(prices / prices.shift(1)).dropna()
 
-
 def regularize_cov(cov: np.ndarray, lam: float = _COV_REGULARISER) -> np.ndarray:
-    """Tikhonov (ridge) regularisation: Sigma_reg = Sigma + lam * I.
-    Guarantees positive-definiteness for any lam > 0."""
     return cov + lam * np.eye(cov.shape[0])
 
-
 def annualize_stats(lr: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    """Annualise daily log-return statistics.
-    mu_annual = E[r_daily] * 252 | Sigma_annual = Cov(r_daily) * 252
-    Applies Tikhonov regularisation to annualised covariance."""
     mu  = lr.mean().values * TRADING_DAYS
     cov = regularize_cov(lr.cov().values * TRADING_DAYS)
     return mu, cov
 
-
 def p_ret(w: np.ndarray, mu: np.ndarray) -> float:
-    """Portfolio annualised expected return: R_p = w^T * mu."""
     return float(w @ mu)
 
-
 def p_vol(w: np.ndarray, cov: np.ndarray) -> float:
-    """Portfolio annualised volatility: s_p = sqrt(w^T * Sigma * w)."""
     v = float(w @ cov @ w)
     return float(np.sqrt(max(v, 0.0)))
 
-
 def p_sharpe(w: np.ndarray, mu: np.ndarray, cov: np.ndarray, rf: float) -> float:
-    """Sharpe ratio: SR = (R_p - R_f) / s_p. Returns 0 if vol ~ 0."""
     vol = p_vol(w, cov)
     return (p_ret(w, mu) - rf) / vol if vol > 1e-12 else 0.0
 
-
 def _cb(n: int):
-    """Build SLSQP equality constraint and box bounds for n-asset portfolio."""
     return (
         {"type": "eq", "fun": lambda w: w.sum() - 1.0},
         tuple((0.0, 1.0) for _ in range(n)),
     )
 
-
 def opt_max_sharpe(mu: np.ndarray, cov: np.ndarray, rf: float) -> np.ndarray:
-    """Maximum Sharpe Ratio portfolio via SciPy SLSQP.
-    Objective: min_w -SR(w) = -(w^T mu - R_f) / sqrt(w^T Sigma w)
-    Falls back to equal-weight if optimiser diverges."""
     n    = len(mu)
     w0   = np.full(n, 1.0 / n)
     con, bnd = _cb(n)
@@ -573,17 +632,12 @@ def opt_max_sharpe(mu: np.ndarray, cov: np.ndarray, rf: float) -> np.ndarray:
         )
         if not res.success:
             raise RuntimeError(res.message)
-        w = np.clip(res.x, 0, 1)
-        w /= w.sum()
+        w = np.clip(res.x, 0, 1); w /= w.sum()
         return w
     except Exception:
         return w0
 
-
 def opt_min_var(mu: np.ndarray, cov: np.ndarray) -> np.ndarray:
-    """Global Minimum Variance portfolio via SciPy SLSQP.
-    Objective: min_w s_p(w) = sqrt(w^T Sigma w)
-    Falls back to equal-weight if optimiser diverges."""
     n    = len(mu)
     w0   = np.full(n, 1.0 / n)
     con, bnd = _cb(n)
@@ -595,49 +649,34 @@ def opt_min_var(mu: np.ndarray, cov: np.ndarray) -> np.ndarray:
         )
         if not res.success:
             raise RuntimeError(res.message)
-        w = np.clip(res.x, 0, 1)
-        w /= w.sum()
+        w = np.clip(res.x, 0, 1); w /= w.sum()
         return w
     except Exception:
         return w0
-
 
 def monte_carlo(
     mu: np.ndarray, cov: np.ndarray, rf: float,
     n: int = N_SIM, seed: int = RANDOM_SEED,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Generate n random portfolios to visualise the feasible set.
-    Each portfolio is Dirichlet-like: w_i ~ Uniform(0,1)^N, normalised to sum=1."""
     rng = np.random.default_rng(seed)
     N   = len(mu)
     R, V, S = np.empty(n), np.empty(n), np.empty(n)
     for i in range(n):
-        w    = rng.random(N); w /= w.sum()
-        R[i] = p_ret(w, mu)
-        V[i] = p_vol(w, cov)
-        S[i] = p_sharpe(w, mu, cov, rf)
+        w = rng.random(N); w /= w.sum()
+        R[i] = p_ret(w, mu); V[i] = p_vol(w, cov); S[i] = p_sharpe(w, mu, cov, rf)
     return R, V, S
 
-
-def asset_metrics(
-    mu: np.ndarray, cov: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Annualised return and volatility for each individual asset (100% allocation)."""
+def asset_metrics(mu: np.ndarray, cov: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     n = len(mu)
     rets, vols = np.empty(n), np.empty(n)
     for i in range(n):
         w = np.zeros(n); w[i] = 1.0
-        rets[i] = p_ret(w, mu)
-        vols[i] = p_vol(w, cov)
+        rets[i] = p_ret(w, mu); vols[i] = p_vol(w, cov)
     return rets, vols
-
 
 def hist_var_cvar(
     w: np.ndarray, lr: pd.DataFrame, conf: float = 0.95,
 ) -> tuple[float, float]:
-    """95% Historical Value-at-Risk and Conditional VaR (Expected Shortfall).
-    VaR  = 5th percentile of portfolio daily return distribution.
-    CVaR = E[r_p | r_p <= VaR] — mean of all returns in the loss tail."""
     pret  = lr.values @ w
     alpha = 1.0 - conf
     var   = float(np.percentile(pret, alpha * 100))
@@ -647,7 +686,7 @@ def hist_var_cvar(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §4  PLOTTING LAYER — institutional dark-terminal efficient frontier
+#  §4  PLOTTING LAYER — Plotly interactive efficient frontier
 # ══════════════════════════════════════════════════════════════════════════════
 
 _PALETTE = [
@@ -657,40 +696,8 @@ _PALETTE = [
     "#A5D6A7","#FFB74D","#B3E5FC","#FF8A80","#82B1FF",
     "#CCFF90","#EA80FC","#84FFFF","#FF6E40","#40C4FF",
     "#B9F6CA","#FF4081","#EEFF41","#7C4DFF","#64FFDA",
-    "#FFD180","#FFFFFF","#AEEA00","#FF6D00","#00B0FF",
+    "#FFD180","#CCCCFF","#AEEA00","#FF6D00","#00B0FF",
 ]
-
-# Nudge table: ticker_name -> (Δvol_fraction, Δret_fraction, horizontal_align)
-_NUDGE: dict[str, tuple] = {
-    "RELIANCE"   :(+0.030,+0.075,"left"),  "TCS"        :(-0.080,+0.075,"right"),
-    "INFY"       :(+0.030,-0.090,"left"),  "HDFCBANK"   :(-0.090,+0.075,"right"),
-    "ICICIBANK"  :(+0.030,+0.075,"left"),  "SBIN"       :(-0.060,-0.090,"right"),
-    "AXISBANK"   :(+0.030,-0.090,"left"),  "KOTAKBANK"  :(-0.090,+0.075,"right"),
-    "BAJFINANCE" :(+0.030,+0.075,"left"),  "BAJAJFINSV" :(-0.095,-0.090,"right"),
-    "INDUSINDBK" :(+0.030,+0.075,"left"),  "HDFCLIFE"   :(-0.090,-0.090,"right"),
-    "SBILIFE"    :(+0.030,-0.090,"left"),  "IRFC"       :(-0.060,+0.075,"right"),
-    "JIOFIN"     :(+0.030,+0.075,"left"),  "HCLTECH"    :(-0.085,-0.090,"right"),
-    "WIPRO"      :(+0.030,+0.075,"left"),  "TECHM"      :(-0.075,+0.075,"right"),
-    "ONGC"       :(+0.030,-0.090,"left"),  "BPCL"       :(-0.060,+0.075,"right"),
-    "NTPC"       :(+0.030,+0.075,"left"),  "POWERGRID"  :(-0.095,-0.090,"right"),
-    "COALINDIA"  :(+0.030,-0.090,"left"),  "SUZLON"     :(-0.070,+0.075,"right"),
-    "TATAMOTORS" :(+0.030,+0.075,"left"),  "MARUTI"     :(-0.075,-0.090,"right"),
-    "M&M"        :(+0.030,-0.090,"left"),  "EICHERMOT"  :(-0.090,+0.075,"right"),
-    "HEROMOTOCO" :(+0.030,+0.075,"left"),  "BAJAJ-AUTO" :(-0.095,-0.090,"right"),
-    "ADANIENT"   :(+0.030,+0.075,"left"),  "ADANIPORTS" :(+0.030,-0.090,"left"),
-    "BEL"        :(-0.050,+0.075,"right"), "HAL"        :(+0.030,+0.075,"left"),
-    "SUNPHARMA"  :(-0.095,+0.075,"right"), "DRREDDY"    :(+0.030,+0.075,"left"),
-    "CIPLA"      :(-0.060,-0.090,"right"), "APOLLOHOSP" :(+0.030,-0.090,"left"),
-    "DIVISLAB"   :(-0.075,+0.075,"right"), "HINDUNILVR" :(+0.030,+0.075,"left"),
-    "ITC"        :(-0.045,-0.090,"right"), "NESTLEIND"  :(-0.085,-0.090,"right"),
-    "BRITANNIA"  :(+0.030,+0.075,"left"),  "TATACONSUM" :(-0.090,+0.075,"right"),
-    "TITAN"      :(+0.030,-0.090,"left"),  "ASIANPAINT" :(-0.090,+0.075,"right"),
-    "ZOMATO"     :(+0.030,+0.075,"left"),  "TRENT"      :(+0.030,+0.075,"left"),
-    "BHARTIARTL" :(-0.095,+0.075,"right"), "ULTRACEMCO" :(-0.095,-0.090,"right"),
-    "GRASIM"     :(+0.030,+0.075,"left"),  "TATASTEEL"  :(-0.085,+0.075,"right"),
-    "JSWSTEEL"   :(+0.030,-0.090,"left"),  "HINDALCO"   :(-0.080,+0.075,"right"),
-    "LT"         :(+0.030,+0.075,"left"),
-}
 
 
 def build_figure(
@@ -707,31 +714,14 @@ def build_figure(
     is_synth      : bool = False,
     lookback_label: str  = "3 Years",
 ) -> go.Figure:
-    """
-    Interactive Efficient Frontier chart built with Plotly graph_objects.
+    """Interactive Plotly Efficient Frontier — dark terminal aesthetic.
+    Hover tooltips on every element. Crosshairs at optimal portfolio points.
+    plot_bgcolor / paper_bgcolor = #08080f. Gridlines at #101025."""
 
-    Design principles (matching the original institutional dark-terminal look):
-    - plot_bgcolor / paper_bgcolor  = #08080f  (deep navy-black)
-    - Gridlines at #101025 (barely visible — financial terminal style)
-    - Monte Carlo cloud coloured by Sharpe ratio via plasma colorscale with colorbar
-    - Individual asset dots — per-ticker palette colour, full hover tooltip
-    - Max Sharpe  = filled circle (crimson #EF5350)  with dashed crosshairs
-    - Min Variance = diamond marker (teal #26A69A)   with dashed crosshairs
-    - Risk-free rate = dotted horizontal reference line
-    - Monospaced, uppercase title that changes colour when synthetic data is used
-
-    Hover tooltips
-    ──────────────
-    Monte Carlo dots   : Return (%), Volatility (%), Sharpe Ratio
-    Individual assets  : Ticker, Annual Return (%), Annual Volatility (%)
-    Max Sharpe marker  : Return (%), Volatility (%), Sharpe Ratio
-    Min Variance marker: Return (%), Volatility (%), Sharpe Ratio
-    """
     rs, vs, ss = p_ret(ws, mu), p_vol(ws, cov), p_sharpe(ws, mu, cov, rf)
     rm, vm, sm = p_ret(wm, mu), p_vol(wm, cov), p_sharpe(wm, mu, cov, rf)
     ar, av     = asset_metrics(mu, cov)
 
-    # ── axis range helpers ───────────────────────────────────────────────────
     all_v = np.concatenate([mc_v*100, av*100, [vs*100, vm*100]])
     all_r = np.concatenate([mc_r*100, ar*100, [rs*100, rm*100]])
     vlo, vhi = float(all_v.min()), float(all_v.max())
@@ -743,238 +733,154 @@ def build_figure(
 
     fig = go.Figure()
 
-    # ── 1.  Monte Carlo feasible set — WebGL scatter, plasma Sharpe colormap ─
+    # 1. Monte Carlo cloud
     fig.add_trace(go.Scattergl(
         x    = mc_v * 100,
         y    = mc_r * 100,
         mode = "markers",
         name = "Monte Carlo Portfolios",
         marker = dict(
-            color      = mc_s,
-            colorscale = "plasma",
-            opacity    = 0.30,
-            size       = 3,
-            colorbar   = dict(
-                title      = dict(
-                    text     = "Sharpe Ratio",
-                    font     = dict(color="#666688", size=10, family="monospace"),
-                    side     = "right",
-                ),
-                tickfont   = dict(color="#666688", size=8, family="monospace"),
-                outlinecolor = "#1a1a3a",
-                outlinewidth = 1,
-                thickness  = 14,
-                len        = 0.75,
-                x          = 1.01,
+            color=mc_s, colorscale="plasma", opacity=0.28, size=3,
+            colorbar=dict(
+                title=dict(text="Sharpe Ratio",
+                           font=dict(color="#555577", size=9, family="monospace"),
+                           side="right"),
+                tickfont=dict(color="#555577", size=8, family="monospace"),
+                outlinecolor="#1a1a3a", outlinewidth=1,
+                thickness=12, len=0.72, x=1.01,
             ),
-            showscale  = True,
-            line       = dict(width=0),
+            showscale=True, line=dict(width=0),
         ),
-        hovertemplate = (
+        hovertemplate=(
             "<b>Monte Carlo Portfolio</b><br>"
-            "Return : %{y:.2f}%<br>"
+            "Return     : %{y:.2f}%<br>"
             "Volatility : %{x:.2f}%<br>"
-            "Sharpe : %{marker.color:.3f}"
+            "Sharpe     : %{marker.color:.3f}"
             "<extra></extra>"
         ),
-        showlegend = False,
+        showlegend=False,
     ))
 
-    # ── 2.  Individual asset dots — one trace per ticker ─────────────────────
+    # 2. Individual asset dots
     for i, name in enumerate(names):
         colour = _PALETTE[i % len(_PALETTE)]
         fig.add_trace(go.Scatter(
-            x    = [av[i] * 100],
-            y    = [ar[i] * 100],
-            mode = "markers+text",
-            name = name,
-            marker = dict(
-                color  = colour,
-                size   = 9,
-                opacity = 0.90,
-                line   = dict(color="rgba(255,255,255,0.12)", width=0.8),
-            ),
-            text          = [name],
-            textposition  = "top center",
-            textfont      = dict(color=colour, size=8, family="monospace"),
-            hovertemplate = (
+            x=[av[i]*100], y=[ar[i]*100],
+            mode="markers+text",
+            name=name,
+            marker=dict(color=colour, size=9, opacity=0.88,
+                        line=dict(color="rgba(255,255,255,0.10)", width=0.8)),
+            text=[name],
+            textposition="top center",
+            textfont=dict(color=colour, size=7.5, family="monospace"),
+            hovertemplate=(
                 f"<b>{name}</b><br>"
-                "Return : %{y:.2f}%<br>"
+                "Return     : %{y:.2f}%<br>"
                 "Volatility : %{x:.2f}%"
                 "<extra></extra>"
             ),
-            showlegend = True,
+            showlegend=True,
         ))
 
-    # ── 3.  Risk-free rate reference line (layout shape + annotation) ─────────
-    fig.add_shape(
-        type      = "line",
-        x0        = x_range[0], x1 = x_range[1],
-        y0        = rf * 100,   y1 = rf * 100,
-        line      = dict(color="#333355", width=1.0, dash="dot"),
-        layer     = "below",
-    )
+    # 3. Risk-free rate line
+    fig.add_shape(type="line",
+        x0=x_range[0], x1=x_range[1], y0=rf*100, y1=rf*100,
+        line=dict(color="#2a2a50", width=1.0, dash="dot"), layer="below")
     fig.add_annotation(
-        x         = x_range[0] + 0.015 * dv,
-        y         = rf * 100 + 0.025 * dr,
-        text      = f"Rf = {rf*100:.2f}%",
-        showarrow = False,
-        font      = dict(color="#444466", size=9, family="monospace"),
-        xanchor   = "left",
-    )
+        x=x_range[0]+0.015*dv, y=rf*100+0.022*dr,
+        text=f"Rf = {rf*100:.2f}%", showarrow=False,
+        font=dict(color="#333355", size=9, family="monospace"), xanchor="left")
 
-    # ── 4.  Max Sharpe — dashed crosshairs ───────────────────────────────────
-    for shape_cfg in [
-        dict(x0=vs*100, x1=vs*100, y0=y_range[0], y1=rs*100),   # vertical
-        dict(x0=x_range[0], x1=vs*100, y0=rs*100, y1=rs*100),   # horizontal
+    # 4. Max Sharpe crosshairs
+    for cfg in [
+        dict(x0=vs*100, x1=vs*100, y0=y_range[0], y1=rs*100),
+        dict(x0=x_range[0], x1=vs*100, y0=rs*100, y1=rs*100),
     ]:
-        fig.add_shape(
-            type  = "line",
-            line  = dict(color="#C62828", width=0.9, dash="dash"),
-            layer = "below",
-            **shape_cfg,
-        )
+        fig.add_shape(type="line",
+            line=dict(color="#8B1A1A", width=0.9, dash="dash"), layer="below", **cfg)
 
-    # ── 5.  Max Sharpe marker ─────────────────────────────────────────────────
+    # 5. Max Sharpe marker
     fig.add_trace(go.Scatter(
-        x    = [vs * 100],
-        y    = [rs * 100],
-        mode = "markers",
-        name = f"MAX SHARPE   SR={ss:.3f}",
-        marker = dict(
-            symbol = "circle",
-            color  = "#EF5350",
-            size   = 16,
-            line   = dict(color="#FFFFFF", width=1.5),
-        ),
-        hovertemplate = (
+        x=[vs*100], y=[rs*100], mode="markers",
+        name=f"MAX SHARPE  SR={ss:.3f}",
+        marker=dict(symbol="circle", color="#EF5350", size=16,
+                    line=dict(color="#FFFFFF", width=1.5)),
+        hovertemplate=(
             "<b>Max Sharpe Portfolio</b><br>"
-            "Return : %{y:.2f}%<br>"
+            f"Return     : {rs*100:.2f}%<br>"
             f"Volatility : {vs*100:.2f}%<br>"
-            f"Sharpe : {ss:.3f}"
+            f"Sharpe     : {ss:.3f}"
             "<extra></extra>"
         ),
-        showlegend = True,
+        showlegend=True,
     ))
 
-    # ── 6.  Min Variance — dashed crosshairs ─────────────────────────────────
-    for shape_cfg in [
+    # 6. Min Variance crosshairs
+    for cfg in [
         dict(x0=vm*100, x1=vm*100, y0=y_range[0], y1=rm*100),
         dict(x0=x_range[0], x1=vm*100, y0=rm*100, y1=rm*100),
     ]:
-        fig.add_shape(
-            type  = "line",
-            line  = dict(color="#00695C", width=0.9, dash="dash"),
-            layer = "below",
-            **shape_cfg,
-        )
+        fig.add_shape(type="line",
+            line=dict(color="#005a50", width=0.9, dash="dash"), layer="below", **cfg)
 
-    # ── 7.  Min Variance marker ───────────────────────────────────────────────
+    # 7. Min Variance marker
     fig.add_trace(go.Scatter(
-        x    = [vm * 100],
-        y    = [rm * 100],
-        mode = "markers",
-        name = f"MIN VARIANCE   SR={sm:.3f}",
-        marker = dict(
-            symbol = "diamond",
-            color  = "#26A69A",
-            size   = 14,
-            line   = dict(color="#FFFFFF", width=1.5),
-        ),
-        hovertemplate = (
+        x=[vm*100], y=[rm*100], mode="markers",
+        name=f"MIN VARIANCE  SR={sm:.3f}",
+        marker=dict(symbol="diamond", color="#26A69A", size=14,
+                    line=dict(color="#FFFFFF", width=1.5)),
+        hovertemplate=(
             "<b>Min Variance Portfolio</b><br>"
-            "Return : %{y:.2f}%<br>"
+            f"Return     : {rm*100:.2f}%<br>"
             f"Volatility : {vm*100:.2f}%<br>"
-            f"Sharpe : {sm:.3f}"
+            f"Sharpe     : {sm:.3f}"
             "<extra></extra>"
         ),
-        showlegend = True,
+        showlegend=True,
     ))
 
-    # ── 8.  Layout — dark terminal aesthetic ──────────────────────────────────
-    if is_synth:
-        title_text  = (
-            f"MARKOWITZ MEAN-VARIANCE EFFICIENT FRONTIER  |  "
-            f"{len(names)} ASSETS  |  SYNTHETIC MVN DATA [{lookback_label} REQUESTED]"
-            f"  |  {N_SIM:,} MC PATHS"
-        )
-        title_colour = "#D4AA00"
-    else:
-        title_text  = (
-            f"MARKOWITZ MEAN-VARIANCE EFFICIENT FRONTIER  |  "
-            f"{len(names)} ASSETS  |  LIVE DATA  LOOKBACK: {lookback_label.upper()}"
-            f"  |  {N_SIM:,} MC PATHS"
-        )
-        title_colour = "#555578"
+    # 8. Layout
+    data_tag = (f"SYNTHETIC MVN  [{lookback_label} REQUESTED]" if is_synth
+                else f"LIVE DATA  |  LOOKBACK: {lookback_label.upper()}")
+    title_col = "#8B6914" if is_synth else "#333355"
 
     fig.update_layout(
-        # ── canvas ──────────────────────────────────────────────────────────
-        plot_bgcolor  = "#08080f",
-        paper_bgcolor = "#08080f",
-        height        = 640,
-        margin        = dict(l=70, r=90, t=80, b=70),
-
-        # ── title ────────────────────────────────────────────────────────────
-        title = dict(
-            text      = title_text,
-            font      = dict(color=title_colour, size=11, family="monospace"),
-            x         = 0.0,
-            xanchor   = "left",
-            pad       = dict(l=4, b=8),
+        plot_bgcolor="#08080f", paper_bgcolor="#08080f",
+        height=600,
+        margin=dict(l=65, r=85, t=70, b=65),
+        title=dict(
+            text=(f"MARKOWITZ EFFICIENT FRONTIER  |  {len(names)} ASSETS  |  "
+                  f"{data_tag}  |  {N_SIM:,} MC PATHS"),
+            font=dict(color=title_col, size=10, family="monospace"),
+            x=0.0, xanchor="left", pad=dict(l=4, b=6),
         ),
-
-        # ── axes ─────────────────────────────────────────────────────────────
-        xaxis = dict(
-            title      = dict(
-                text   = "ANNUALISED VOLATILITY (%)",
-                font   = dict(color="#555578", size=10, family="monospace"),
-                standoff = 10,
-            ),
-            tickfont   = dict(color="#555578", size=8, family="monospace"),
-            gridcolor  = "#101025",
-            gridwidth  = 0.6,
-            zerolinecolor = "#1a1a3a",
-            linecolor  = "#141430",
-            range      = x_range,
-            showgrid   = True,
+        xaxis=dict(
+            title=dict(text="ANNUALISED VOLATILITY (%)",
+                       font=dict(color="#333355", size=9, family="monospace"), standoff=10),
+            tickfont=dict(color="#333355", size=8, family="monospace"),
+            gridcolor="#101025", gridwidth=0.5,
+            zerolinecolor="#1a1a3a", linecolor="#10102a",
+            range=x_range, showgrid=True,
         ),
-        yaxis = dict(
-            title      = dict(
-                text   = "ANNUALISED RETURN (%)",
-                font   = dict(color="#555578", size=10, family="monospace"),
-                standoff = 10,
-            ),
-            tickfont   = dict(color="#555578", size=8, family="monospace"),
-            gridcolor  = "#101025",
-            gridwidth  = 0.6,
-            zerolinecolor = "#1a1a3a",
-            linecolor  = "#141430",
-            range      = y_range,
-            showgrid   = True,
+        yaxis=dict(
+            title=dict(text="ANNUALISED RETURN (%)",
+                       font=dict(color="#333355", size=9, family="monospace"), standoff=10),
+            tickfont=dict(color="#333355", size=8, family="monospace"),
+            gridcolor="#101025", gridwidth=0.5,
+            zerolinecolor="#1a1a3a", linecolor="#10102a",
+            range=y_range, showgrid=True,
         ),
-
-        # ── legend ────────────────────────────────────────────────────────────
-        legend = dict(
-            bgcolor     = "rgba(8,8,15,0.75)",
-            bordercolor = "#1a1a3a",
-            borderwidth = 1,
-            font        = dict(color="#aaaacc", size=9, family="monospace"),
-            x           = 0.01,
-            y           = 0.01,
-            xanchor     = "left",
-            yanchor     = "bottom",
-            itemsizing  = "constant",
+        legend=dict(
+            bgcolor="rgba(8,8,15,0.80)", bordercolor="#14143a", borderwidth=1,
+            font=dict(color="#666688", size=8.5, family="monospace"),
+            x=0.01, y=0.01, xanchor="left", yanchor="bottom", itemsizing="constant",
         ),
-
-        # ── hover ─────────────────────────────────────────────────────────────
-        hoverlabel = dict(
-            bgcolor   = "#0e0e1e",
-            bordercolor = "#2a2a5a",
-            font      = dict(color="#d0d4ff", size=11, family="monospace"),
+        hoverlabel=dict(
+            bgcolor="#0c0c20", bordercolor="#22226a",
+            font=dict(color="#c0c4ff", size=11, family="monospace"),
         ),
-        hovermode = "closest",
+        hovermode="closest",
     )
-
     return fig
 
 
@@ -983,62 +889,67 @@ def build_figure(
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  5.1  SIDEBAR — inputs, lookback, risk-free rate, capital slider, run button
+#  5.1  SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## Configuration")
+    # Identity wordmark
+    st.markdown(
+        "<div style='padding:10px 0 6px 0;'>"
+        "<div style='font-size:0.85rem; font-weight:700; color:#5050aa; "
+        "letter-spacing:0.04em;'>KUNAL KAUSHAL</div>"
+        "<div style='font-size:0.62rem; color:#28285a; letter-spacing:0.1em; "
+        "text-transform:uppercase; font-family:monospace;'>"
+        "Portfolio Analytics  |  v3.0</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
 
-    # Asset Universe
-    st.markdown("**Asset Universe**")
+    # ── Step 1: Asset Selection ──────────────────────────────────────────────
+    st.markdown(
+        "<div style='font-size:0.68rem; font-weight:700; color:#44446a; "
+        "letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;'>"
+        "Step 1 — Select Assets</div>",
+        unsafe_allow_html=True,
+    )
     st.caption(
-        f"Select from {len(NIFTY_SECTOR_POOL)} NSE tickers across 12 sectors. "
-        "All symbols carry the `.NS` suffix — no typing needed."
+        f"Pick 2 to {len(NIFTY_SECTOR_POOL)} stocks from our NSE universe. "
+        "The optimizer will find the best combination for you."
     )
     selected_tickers: list[str] = st.multiselect(
-        label            = "Select Assets",
-        options          = NIFTY_SECTOR_POOL,
-        default          = DEFAULT_TICKERS,
-        help             = (
-            f"Choose 2–{len(NIFTY_SECTOR_POOL)} stocks. "
-            "Feeds directly into the SLSQP optimiser, Monte Carlo engine, and VaR/CVaR."
-        ),
-        label_visibility = "collapsed",
+        label="Select Assets",
+        options=NIFTY_SECTOR_POOL,
+        default=DEFAULT_TICKERS,
+        help="Feeds into the SLSQP optimiser, Monte Carlo engine, and VaR/CVaR.",
+        label_visibility="collapsed",
     )
 
     if selected_tickers:
         sectors    = sorted({_SECTOR_MAP.get(t, "Other") for t in selected_tickers})
-        badge_html = " ".join(
-            f'<span class="sector-pill">{s}</span>' for s in sectors
-        )
+        badge_html = " ".join(f'<span class="sector-pill">{s}</span>' for s in sectors)
         st.markdown(
             f"<div style='margin-top:4px;margin-bottom:2px;'>{badge_html}</div>",
             unsafe_allow_html=True,
         )
         st.caption(
-            f"**{len(selected_tickers)} asset"
-            f"{'s' if len(selected_tickers)!=1 else ''} selected** "
+            f"**{len(selected_tickers)} stock{'s' if len(selected_tickers)!=1 else ''}** "
             f"across {len(sectors)} sector{'s' if len(sectors)!=1 else ''}"
         )
 
     with st.expander("Add custom tickers (optional)"):
         st.caption(
             "One per line or comma-separated.  \n"
-            "Bare Indian names (e.g. `WIPRO`) auto-become `WIPRO.NS`.  \n"
-            "Non-NSE symbols (e.g. `AAPL`) pass through unchanged."
+            "Bare names like `WIPRO` auto-become `WIPRO.NS`.  \n"
+            "Non-NSE symbols like `AAPL` pass through unchanged."
         )
         custom_raw = st.text_area(
-            label            = "Custom tickers",
-            value            = "",
-            height           = 80,
-            placeholder      = "e.g. WIPRO\nAAPL\nMSFT.US",
-            label_visibility = "collapsed",
+            label="Custom tickers", value="", height=75,
+            placeholder="e.g. WIPRO\nAAPL", label_visibility="collapsed",
         )
         custom_tickers = _repair_tickers(custom_raw) if custom_raw.strip() else []
         if custom_tickers:
             st.caption("**Parsed:** " + "  ·  ".join(custom_tickers))
 
-    # Deduplicate & merge
     seen_m: dict[str, None] = {}
     tickers: list[str]      = []
     for t in (selected_tickers + custom_tickers):
@@ -1048,82 +959,86 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Historical Lookback Period
-    st.markdown("**Historical Lookback Period**")
-    lookback_label: str = st.selectbox(
-        label            = "Lookback Period",
-        options          = list(LOOKBACK_OPTIONS.keys()),
-        index            = list(LOOKBACK_OPTIONS.keys()).index(LOOKBACK_DEFAULT),
-        help             = (
-            "Controls the date range sent to yfinance. "
-            "Short windows (<= 1 Month) almost always trigger the Synthetic MVN "
-            "fallback — too few trading days for a valid covariance matrix."
-        ),
-        label_visibility = "collapsed",
-    )
-    lookback_days: int = LOOKBACK_OPTIONS[lookback_label]
+    # ── Advanced Settings (collapsed by default) ─────────────────────────────
+    with st.expander("Advanced Settings", expanded=False):
+        st.markdown(
+            "<div style='font-size:0.66rem; color:#44446a; letter-spacing:0.08em; "
+            "text-transform:uppercase; margin-bottom:8px;'>Historical Lookback</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("How far back the system looks to estimate returns and risk.")
+        lookback_label: str = st.selectbox(
+            label="Lookback Period",
+            options=list(LOOKBACK_OPTIONS.keys()),
+            index=list(LOOKBACK_OPTIONS.keys()).index(LOOKBACK_DEFAULT),
+            help="Short windows (<= 1 Month) trigger the Synthetic MVN fallback.",
+            label_visibility="collapsed",
+        )
+        lookback_days: int = LOOKBACK_OPTIONS[lookback_label]
 
-    if lookback_days <= 30:
+        if lookback_days <= 30:
+            st.markdown(
+                "<div class='lookback-warn'><b>Short window.</b>  "
+                "Synthetic engine will activate automatically.</div>",
+                unsafe_allow_html=True,
+            )
+        elif lookback_days <= 90:
+            st.markdown(
+                "<div class='lookback-warn'><b>Short-medium window.</b>  "
+                "Interpret results with care.</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("---")
         st.markdown(
-            "<div class='lookback-warn'>"
-            "<b>Short window selected.</b>  Fewer trading days than assets will "
-            "activate the Synthetic MVN engine automatically."
-            "</div>",
+            "<div style='font-size:0.66rem; color:#44446a; letter-spacing:0.08em; "
+            "text-transform:uppercase; margin-bottom:4px;'>Risk-Free Rate (%)</div>",
             unsafe_allow_html=True,
         )
-    elif lookback_days <= 90:
-        st.markdown(
-            "<div class='lookback-warn'>"
-            "<b>Short-medium window.</b>  Results are annualised from a limited "
-            "sample — interpret with care."
-            "</div>",
-            unsafe_allow_html=True,
+        st.caption("The return you could get with zero risk (e.g., fixed deposit rate).")
+        rf_pct: float = st.slider(
+            label="RF (%)", min_value=0.0, max_value=15.0,
+            value=DEFAULT_RF_PCT, step=0.25, format="%.2f%%",
+            label_visibility="collapsed",
         )
+        st.caption(f"Using **{rf_pct:.2f}%** as the risk-free benchmark.")
+        rf = rf_pct / 100.0
 
     st.markdown("---")
 
-    # Risk-Free Rate
-    st.markdown("**Annual Risk-Free Rate (%)**")
-    rf_pct: float = st.slider(
-        label            = "RF (%)",
-        min_value        = 0.0,
-        max_value        = 15.0,
-        value            = DEFAULT_RF_PCT,
-        step             = 0.25,
-        format           = "%.2f%%",
-        label_visibility = "collapsed",
+    # ── Step 2: Capital ──────────────────────────────────────────────────────
+    st.markdown(
+        "<div style='font-size:0.68rem; font-weight:700; color:#44446a; "
+        "letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;'>"
+        "Step 2 — Your Investment Capital</div>",
+        unsafe_allow_html=True,
     )
-    st.caption(f"Selected: **{rf_pct:.2f}%**  (Indian T-Bill proxy)")
-    rf = rf_pct / 100.0
-
-    st.markdown("---")
-
-    # Total Capital Slider (NEW)
-    st.markdown("**Total Capital to Invest (Rs.)**")
+    st.caption("How much money are you looking to invest? We will show you the exact rupee split.")
     total_capital: float = float(
         st.slider(
-            label       = "Capital",
-            min_value   = 1_000,
-            max_value   = 100_000,
-            value       = 100_000,
-            step        = 1_000,
-            format      = "Rs. %d",
-            label_visibility = "collapsed",
-            help        = "Used to compute per-stock rupee allocations in the "
-                          "Capital Allocation Summary and Plain-English Report.",
+            label="Capital", min_value=1_000, max_value=100_000,
+            value=100_000, step=1_000, format="Rs. %d",
+            label_visibility="collapsed",
+            help="Used to compute per-stock rupee allocations.",
         )
     )
-    st.caption(
-        f"Capital: **Rs. {total_capital:,.0f}**  "
-        f"(Rs. {total_capital/1e3:.1f}K)"
-    )
+    st.caption(f"Investing: **Rs. {total_capital:,.0f}**")
 
     st.markdown("---")
+
+    # ── Step 3: Run ──────────────────────────────────────────────────────────
+    st.markdown(
+        "<div style='font-size:0.68rem; font-weight:700; color:#44446a; "
+        "letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;'>"
+        "Step 3 — Run the Optimizer</div>",
+        unsafe_allow_html=True,
+    )
     run = st.button("Run Optimization", use_container_width=True,
                     icon=":material/play_arrow:")
     st.markdown("---")
 
-    st.caption("Data    : yfinance  |  " + lookback_label)
+    st.caption("Data    : yfinance  |  " + LOOKBACK_OPTIONS.get(
+        locals().get("lookback_label", LOOKBACK_DEFAULT), LOOKBACK_DEFAULT).__class__.__name__)
     st.caption("Fallbk  : Synthetic MVN (756 days)")
     st.caption("Optim   : SciPy SLSQP  |  long-only")
     st.caption(f"Sim     : {N_SIM:,} Monte Carlo portfolios")
@@ -1131,20 +1046,44 @@ with st.sidebar:
     st.caption("Cov     : Tikhonov regularised (lam=1e-6)")
 
 
+# Ensure lookback_label and rf are always defined (in case expander was not opened)
+try:
+    _ = lookback_label
+except NameError:
+    lookback_label = LOOKBACK_DEFAULT
+    lookback_days  = LOOKBACK_OPTIONS[lookback_label]
+try:
+    _ = rf
+except NameError:
+    rf = DEFAULT_RF_PCT / 100.0
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  5.2  MAIN HEADER
+#  5.2  MAIN HEADER + DISCLAIMER BANNER
 # ─────────────────────────────────────────────────────────────────────────────
+# Top disclaimer — signals seriousness and trust
 st.markdown(
-    "<h1>Markowitz Mean-Variance Optimization</h1>",
+    "<div class='disclaimer-banner'>"
+    "For educational and informational purposes only. "
+    "This tool does not constitute financial advice or an investment recommendation. "
+    "Past performance is not indicative of future results. "
+    "Consult a qualified financial advisor before making investment decisions."
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    "<h1>Markowitz Portfolio Optimization</h1>",
     unsafe_allow_html=True,
 )
 st.markdown(
-    "<p style='color:#44446a; font-size:0.82rem; font-weight:600; "
-    "margin-top:-12px; letter-spacing:0.08em; text-transform:uppercase;'>"
-    "Institutional Portfolio Construction Terminal  &nbsp;|&nbsp;  "
-    "SciPy SLSQP  &nbsp;|&nbsp;  95% Historical VaR / CVaR  &nbsp;|&nbsp;  "
-    "Developed by Kunal Kaushal"
-    "</p>",
+    "<div class='wordmark'>"
+    "KUNAL KAUSHAL  &nbsp;|&nbsp;  "
+    "IIT Kanpur NPTEL Capstone  &nbsp;|&nbsp;  "
+    "SciPy SLSQP  &nbsp;|&nbsp;  "
+    "95% Historical VaR / CVaR  &nbsp;|&nbsp;  "
+    "v3.0"
+    "</div>",
     unsafe_allow_html=True,
 )
 st.markdown("---")
@@ -1155,22 +1094,19 @@ st.markdown("---")
 # ─────────────────────────────────────────────────────────────────────────────
 if len(tickers) < 2:
     st.warning(
-        "Select at least **2 assets** from the sidebar dropdown "
-        "(or add custom tickers) to run the optimisation.",
+        "Select at least **2 assets** from the sidebar to run the optimisation.",
         icon=":material/warning:",
     )
     st.stop()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  5.4  SESSION-STATE CACHE INVALIDATION
-#  Hash (tickers, lookback_label) as run-key. total_capital intentionally
-#  excluded — it only affects display, not the optimisation math.
+#  5.4  SESSION-STATE CACHE
 # ─────────────────────────────────────────────────────────────────────────────
 _run_key = (tuple(tickers), lookback_label)
 
 if (
-    "res"      not in st.session_state
+    "res" not in st.session_state
     or run
     or st.session_state.get("_run_key") != _run_key
 ):
@@ -1194,7 +1130,7 @@ if (
     with st.spinner(f"Simulating {N_SIM:,} random portfolios ..."):
         mc_r, mc_v, mc_s = monte_carlo(mu, cov, rf)
 
-    with st.spinner("Rendering Efficient Frontier ..."):
+    with st.spinner("Building interactive chart ..."):
         fig = build_figure(
             mu, cov, ws, wm, mc_r, mc_v, mc_s,
             lr, names, rf, is_synth, lookback_label,
@@ -1212,11 +1148,11 @@ if (
 #  5.5  UNPACK SESSION STATE
 # ─────────────────────────────────────────────────────────────────────────────
 R              = st.session_state["res"]
-prices         = R["prices"];   lr      = R["lr"]
-mu             = R["mu"];       cov     = R["cov"]
-ws             = R["ws"];       wm      = R["wm"]
-names          = R["names"];    rf      = R["rf"]
-fig            = R["fig"];      is_synth= R["is_synth"]
+prices         = R["prices"];    lr      = R["lr"]
+mu             = R["mu"];        cov     = R["cov"]
+ws             = R["ws"];        wm      = R["wm"]
+names          = R["names"];     rf      = R["rf"]
+fig            = R["fig"];       is_synth= R["is_synth"]
 lookback_label = R["lookback_label"]
 
 rs, vs, ss   = p_ret(ws,mu), p_vol(ws,cov), p_sharpe(ws,mu,cov,rf)
@@ -1237,21 +1173,20 @@ tab_overview, tab_terminal, tab_report = st.tabs([
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 1  — PROJECT OVERVIEW
+#  TAB 1 — OVERVIEW
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_overview:
 
     st.markdown("## About This Dashboard")
-
     st.markdown(
         "<div class='overview-block'>"
         "Developed by <strong>Kunal Kaushal</strong>, a B.Com (Hons) graduate. "
-        "This dashboard is a practical application and capstone implementation for the "
+        "This dashboard is a practical capstone implementation for the "
         "<em>Advanced Financial Analytics</em> certification via "
         "<strong>IIT Kanpur (NPTEL / Swayam)</strong>. "
-        "It demonstrates the deployment of SciPy-based <strong>Sequential Least Squares "
-        "Programming (SLSQP)</strong> and <strong>Monte Carlo simulations</strong> for "
-        "real-world portfolio optimization."
+        "It demonstrates the deployment of SciPy-based "
+        "<strong>Sequential Least Squares Programming (SLSQP)</strong> "
+        "and <strong>Monte Carlo simulations</strong> for real-world portfolio optimization."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -1259,26 +1194,27 @@ with tab_overview:
     col_a, col_b = st.columns(2, gap="large")
 
     with col_a:
-        st.markdown("### Theoretical Foundation")
-        st.markdown(
-            "<div class='overview-block'>"
-            "<strong>Harry Markowitz (1952)</strong> formalized the idea that rational "
-            "investors should not simply maximize expected return — they must consider "
-            "risk simultaneously. Mean-Variance Optimization (MVO) finds the set of "
-            "portfolios that offer the <em>highest return for a given level of risk</em>, "
-            "or equivalently, the <em>lowest risk for a given level of return</em>. "
-            "This set is called the <strong>Efficient Frontier</strong>.<br><br>"
-            "The two portfolios highlighted in this terminal are:<br>"
-            "<ul>"
-            "<li><strong>Max Sharpe Portfolio</strong> — maximises the Sharpe ratio "
-            "(return per unit of risk); the best risk-adjusted portfolio.</li>"
-            "<li><strong>Min Variance Portfolio</strong> — sits at the leftmost point "
-            "of the frontier; the lowest achievable volatility for a fully-invested "
-            "long-only portfolio.</li>"
-            "</ul>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown("### How to Use This Tool")
+        steps = [
+            ("Step 1", "Select Assets", "Pick 2 or more NSE stocks from the sidebar. Mix sectors for better diversification."),
+            ("Step 2", "Set Your Capital", "Move the capital slider to the amount you plan to invest."),
+            ("Step 3", "Run Optimization", "Click 'Run Optimization'. The engine fetches live data and finds your best portfolios."),
+            ("Step 4", "Read the Chart", "Go to Portfolio Optimization. Each dot is a possible portfolio. Hover to explore."),
+            ("Step 5", "Understand Results", "Go to Investment Insights for a plain-English explanation of what the numbers mean for you."),
+        ]
+        for num, title, desc in steps:
+            st.markdown(
+                f"<div style='display:flex; align-items:flex-start; margin-bottom:12px;'>"
+                f"<div style='min-width:52px; background:#10103a; border:1px solid #22225a; "
+                f"border-radius:4px; padding:3px 6px; font-size:0.62rem; font-weight:700; "
+                f"color:#4444aa; letter-spacing:0.08em; text-transform:uppercase; "
+                f"margin-right:12px; margin-top:1px; text-align:center; flex-shrink:0;'>{num}</div>"
+                f"<div><div style='font-size:0.84rem; font-weight:600; color:#8888cc; "
+                f"margin-bottom:2px;'>{title}</div>"
+                f"<div style='font-size:0.78rem; color:#555577; line-height:1.5;'>{desc}</div>"
+                f"</div></div>",
+                unsafe_allow_html=True,
+            )
 
         st.markdown("### Mathematical Formulation")
         st.code(
@@ -1286,90 +1222,65 @@ with tab_overview:
             "Portfolio Variance  : s2_p = w^T · Sigma · w\n"
             "Sharpe Ratio        : SR   = (R_p - R_f) / s_p\n"
             "Tikhonov Reg        : Sigma_reg = Sigma + 1e-6 * I\n"
-            "SLSQP Constraints   : sum(w_i)=1,  0<=w_i<=1  (long-only)\n"
-            "VaR (95%)           : 5th percentile of daily portfolio returns\n"
-            "CVaR (95%)          : E[r | r <= VaR]  (expected shortfall)",
+            "SLSQP Constraints   : sum(w_i)=1,  0<=w_i<=1\n"
+            "VaR (95%)           : 5th percentile of daily returns\n"
+            "CVaR (95%)          : E[r | r <= VaR]",
             language="text",
         )
 
     with col_b:
         st.markdown("### Engine Architecture")
-        st.markdown(
-            "<div class='overview-block'>"
-            "<table style='width:100%; border-collapse:collapse; font-size:0.82rem;'>"
-            "<tr><td style='color:#5555aa; padding:5px 8px; font-weight:700; "
-            "text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap;'>"
-            "Optimiser</td>"
-            "<td style='color:#aaaacc; padding:5px 8px;'>SciPy SLSQP — Sequential "
-            "Least Squares Programming (ftol=1e-12, maxiter=2,000)</td></tr>"
-            "<tr><td style='color:#5555aa; padding:5px 8px; font-weight:700; "
-            "text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap;'>"
-            "Simulation</td>"
-            "<td style='color:#aaaacc; padding:5px 8px;'>Monte Carlo — 5,000 random "
-            "Dirichlet-weighted portfolios to map the feasible set</td></tr>"
-            "<tr><td style='color:#5555aa; padding:5px 8px; font-weight:700; "
-            "text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap;'>"
-            "Risk Engine</td>"
-            "<td style='color:#aaaacc; padding:5px 8px;'>95% Historical VaR & CVaR "
-            "(Expected Shortfall) on actual log-return distributions</td></tr>"
-            "<tr><td style='color:#5555aa; padding:5px 8px; font-weight:700; "
-            "text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap;'>"
-            "Covariance</td>"
-            "<td style='color:#aaaacc; padding:5px 8px;'>Tikhonov (ridge) "
-            "regularisation, lambda=1e-6 — guarantees positive-definiteness even "
-            "when T~=N (short data windows)</td></tr>"
-            "<tr><td style='color:#5555aa; padding:5px 8px; font-weight:700; "
-            "text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap;'>"
-            "Fallback</td>"
-            "<td style='color:#aaaacc; padding:5px 8px;'>Synthetic MVN engine — "
-            "756 days of simulated multivariate-normal log-returns when yfinance "
-            "is offline or lookback is too short</td></tr>"
-            "<tr><td style='color:#5555aa; padding:5px 8px; font-weight:700; "
-            "text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap;'>"
-            "Universe</td>"
-            "<td style='color:#aaaacc; padding:5px 8px;'>55 NSE tickers — all "
-            "Nifty 50 constituents + select high-momentum Indian large-caps across "
-            "12 sectors; .NS auto-appended</td></tr>"
-            "</table>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("### Key Capabilities")
-        capabilities = [
-            ("Dynamic Lookback",    "1 Day to 5 Years — configurable from the sidebar"),
-            ("Offline Resilience",  "Synthetic MVN fallback preserves full math fidelity"),
-            ("Capital Allocation",  "Rupee-denominated allocation for any investment size"),
-            ("Plain-English Report","Layman-friendly interpretation of all results"),
-            ("PyArrow Safety",      "All DataFrames use explicit float64 — Arrow compatible"),
-            ("1-Hour Cache",        "yfinance results cached via st.cache_data(ttl=3600)"),
+        arch_rows = [
+            ("Optimiser",   "SciPy SLSQP — Sequential Least Squares Programming (ftol=1e-12, maxiter=2,000)"),
+            ("Simulation",  "Monte Carlo — 5,000 random portfolios to map the full feasible set"),
+            ("Risk Engine", "95% Historical VaR & CVaR computed on actual log-return distributions"),
+            ("Covariance",  "Tikhonov (ridge) regularisation lambda=1e-6 — guarantees positive-definiteness"),
+            ("Fallback",    "Synthetic MVN engine — 756 days of simulated data when live data is unavailable"),
+            ("Universe",    "55 NSE tickers — Nifty 50 + high-momentum picks across 12 sectors"),
+            ("Cache",       "Live data cached for 1 hour via st.cache_data — fast re-runs on same session"),
         ]
-        for title, desc in capabilities:
+        for label, desc in arch_rows:
             st.markdown(
-                f"<div style='display:flex; align-items:flex-start; margin-bottom:8px;'>"
-                f"<span style='color:#3a3a88; font-size:0.9rem; margin-right:10px; "
-                f"margin-top:1px; flex-shrink:0;'>▸</span>"
-                f"<span style='font-size:0.83rem;'>"
-                f"<strong style='color:#8888cc;'>{title}</strong>"
-                f"<span style='color:#555577;'> — </span>"
-                f"<span style='color:#888899;'>{desc}</span></span></div>",
+                f"<div style='display:flex; align-items:flex-start; margin-bottom:10px; "
+                f"padding-bottom:10px; border-bottom:1px solid #10103a;'>"
+                f"<div style='min-width:90px; font-size:0.68rem; font-weight:700; "
+                f"color:#3a3a88; letter-spacing:0.06em; text-transform:uppercase; "
+                f"margin-right:14px; flex-shrink:0; padding-top:1px;'>{label}</div>"
+                f"<div style='font-size:0.78rem; color:#555577; line-height:1.55;'>{desc}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("### Key Design Decisions")
+        decisions = [
+            ("Colorblind-safe palette", "Max Sharpe uses crimson; Min Variance uses teal — distinguishable without relying on red/green alone"),
+            ("Export-ready tables",     "All allocation tables have a Download CSV button for sharing results"),
+            ("Offline resilience",      "Synthetic MVN fallback ensures the app always works, even without internet"),
+            ("Capital in Rupees",       "Every result is shown in both % and Rs. so the numbers feel real"),
+        ]
+        for title, desc in decisions:
+            st.markdown(
+                f"<div style='margin-bottom:10px;'>"
+                f"<span style='font-size:0.78rem; font-weight:600; color:#6666aa;'>{title}</span>"
+                f"<span style='font-size:0.78rem; color:#333355;'> — {desc}</span>"
+                f"</div>",
                 unsafe_allow_html=True,
             )
 
     st.markdown("---")
     st.markdown(
-        "<p style='text-align:center; color:#22223a; font-size:0.72rem; "
-        "letter-spacing:0.06em; font-family:monospace;'>"
-        "MARKOWITZ MVO DASHBOARD  |  SCIPY SLSQP  |  95% HISTORICAL VAR/CVAR  |  "
-        "TIKHONOV COVARIANCE (LAM=1E-6)  |  YFINANCE  |  "
-        "FOR INFORMATIONAL PURPOSES ONLY — NOT FINANCIAL ADVICE"
+        "<p style='text-align:center; color:#18183a; font-size:0.68rem; "
+        "font-family:monospace; letter-spacing:0.06em;'>"
+        "MARKOWITZ MVO  |  SCIPY SLSQP  |  95% HISTORICAL VAR/CVAR  |  "
+        "TIKHONOV REGULARISATION  |  YFINANCE  |  "
+        "KUNAL KAUSHAL  |  IIT KANPUR NPTEL  |  v3.0"
         "</p>",
         unsafe_allow_html=True,
     )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 2  — QUANT TERMINAL
+#  TAB 2 — PORTFOLIO OPTIMIZATION
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_terminal:
 
@@ -1377,16 +1288,14 @@ with tab_terminal:
     if is_synth:
         st.info(
             f"**Simulated Data Mode** — the '{lookback_label}' window returned "
-            "insufficient live data (too few rows or yfinance offline). "
-            "All metrics use **756 days of synthetic multivariate-normal "
-            "log-returns**. Optimisation math is identical; only the price "
-            "series is artificial.",
+            "insufficient live data. All metrics use **756 days of synthetic "
+            "multivariate-normal log-returns**. Optimisation math is identical.",
             icon=":material/science:",
         )
     else:
         st.success(
-            f"**Live Data** — {len(prices):,} clean trading days loaded from "
-            f"yfinance  |  Lookback: **{lookback_label}**",
+            f"**Live NSE Data** — {len(prices):,} clean trading days  |  "
+            f"Lookback: **{lookback_label}**",
             icon=":material/check_circle:",
         )
 
@@ -1399,35 +1308,140 @@ with tab_terminal:
     c5.metric("Lookback",     lookback_label)
     st.markdown("---")
 
+    # ── Decision Aid — most important UX addition ────────────────────────────
+    st.markdown("## Which Portfolio Should I Choose?")
+    st.markdown(
+        "<div class='decision-box'>"
+        "<div class='decision-box-title'>Recommendation Guide — Based on Your Goals</div>",
+        unsafe_allow_html=True,
+    )
+
+    # Determine risk label for each portfolio
+    def _risk_label(vol_pct: float) -> tuple[str, str]:
+        if vol_pct < 15:
+            return "Low Risk", "risk-bar-fill-low"
+        elif vol_pct < 25:
+            return "Medium Risk", "risk-bar-fill-mid"
+        else:
+            return "High Risk", "risk-bar-fill-high"
+
+    s_risk_label, s_risk_class = _risk_label(vs*100)
+    m_risk_label, m_risk_class = _risk_label(vm*100)
+    bar_width_s = min(100, int(vs * 250))
+    bar_width_m = min(100, int(vm * 250))
+
+    da1, da2 = st.columns(2, gap="large")
+    with da1:
+        st.markdown(
+            "<div class='decision-pill-growth'>"
+            "<div style='font-size:0.65rem; font-weight:700; color:#6644aa; "
+            "letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px;'>"
+            "If you want Growth</div>"
+            "<div style='font-size:0.82rem; color:#9988cc; line-height:1.5;'>"
+            "Choose the <strong style='color:#EF5350;'>Max Sharpe Portfolio</strong>. "
+            "It gives you the best return for every unit of risk you take on. "
+            "Ideal for long-term investors comfortable with some ups and downs."
+            "</div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div style='font-size:0.68rem; color:#44446a; margin-top:6px;'>"
+            f"Expected Return: <strong style='color:#EF5350;'>{rs*100:.1f}%</strong> "
+            f"&nbsp;|&nbsp; Risk: <strong style='color:#EF5350;'>{vs*100:.1f}%</strong> "
+            f"&nbsp;|&nbsp; {s_risk_label}"
+            f"</div>"
+            f"<div class='risk-bar-wrap'><div class='{s_risk_class}' "
+            f"style='width:{bar_width_s}%;'></div></div>",
+            unsafe_allow_html=True,
+        )
+    with da2:
+        st.markdown(
+            "<div class='decision-pill-safety'>"
+            "<div style='font-size:0.65rem; font-weight:700; color:#226655; "
+            "letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px;'>"
+            "If you want Safety</div>"
+            "<div style='font-size:0.82rem; color:#669988; line-height:1.5;'>"
+            "Choose the <strong style='color:#26A69A;'>Min Variance Portfolio</strong>. "
+            "It minimises how much your money fluctuates day to day. "
+            "Ideal for conservative investors or shorter time horizons."
+            "</div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div style='font-size:0.68rem; color:#224433; margin-top:6px;'>"
+            f"Expected Return: <strong style='color:#26A69A;'>{rm*100:.1f}%</strong> "
+            f"&nbsp;|&nbsp; Risk: <strong style='color:#26A69A;'>{vm*100:.1f}%</strong> "
+            f"&nbsp;|&nbsp; {m_risk_label}"
+            f"</div>"
+            f"<div class='risk-bar-wrap'><div class='{m_risk_class}' "
+            f"style='width:{bar_width_m}%;'></div></div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("---")
+
     # ── Efficient Frontier Chart ─────────────────────────────────────────────
     st.markdown("## Efficient Frontier")
+
+    # Plain-English chart caption — directly above chart
+    st.markdown(
+        "<div class='chart-caption'>"
+        "<strong style='color:#5555aa;'>How to read this chart:</strong>  "
+        "Every dot represents one possible way to combine your selected stocks into a portfolio. "
+        "Move right = more risk. Move up = better return. "
+        "The <strong style='color:#EF5350;'>red circle</strong> is your mathematically best "
+        "risk-adjusted portfolio (Max Sharpe). "
+        "The <strong style='color:#26A69A;'>teal diamond</strong> is the safest option (Min Variance). "
+        "Hover over any dot for exact numbers."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
     st.plotly_chart(fig, use_container_width=True)
+
+    # How to read expander
+    with st.expander("Understanding the Efficient Frontier in depth"):
+        st.markdown(
+            "**What is the Efficient Frontier?**  \n"
+            "It is the boundary of the best possible portfolios. Any portfolio sitting "
+            "on this boundary cannot be improved — you cannot get more return without "
+            "also taking on more risk, and you cannot reduce risk without also reducing return.  \n\n"
+            "**What are all the other dots?**  \n"
+            f"The {N_SIM:,} faint coloured dots are randomly constructed portfolios "
+            "generated by the Monte Carlo engine. They map out the entire 'cloud' of "
+            "possible portfolios from your selected stocks. The colour of each dot "
+            "shows its Sharpe ratio — brighter means a better ratio of return to risk.  \n\n"
+            "**Why are the coloured dots (individual stocks) often far from the frontier?**  \n"
+            "A single stock portfolio is inherently undiversified. By combining stocks "
+            "intelligently, the optimizer can reach a point on the frontier that none "
+            "of the individual stocks can reach alone."
+        )
+
     st.markdown("---")
 
     # ── Capital Allocation Summary ───────────────────────────────────────────
     st.markdown("## Capital Allocation Summary")
     st.caption(
-        f"Based on total investment capital of **Rs. {total_capital:,.0f}**. "
-        "Stocks with allocation < 0.01% are filtered out for clarity. "
-        "Adjust capital using the sidebar slider."
+        f"Based on **Rs. {total_capital:,.0f}** investment capital. "
+        "Stocks below 0.01% weight are hidden. "
+        "Use the sidebar slider to change your capital."
     )
 
     col_sharpe, col_minvar = st.columns(2, gap="large")
 
-    # Helper: build allocation dataframe for one portfolio
     def _build_alloc_df(weights: np.ndarray, asset_names: list[str],
                         capital: float, min_wt: float = 0.0001) -> pd.DataFrame:
-        mask = weights >= min_wt
+        mask      = weights >= min_wt
         tickers_f = [asset_names[i] for i in range(len(asset_names)) if mask[i]]
         weights_f = weights[mask]
         rupees_f  = weights_f * capital
-        return pd.DataFrame(
-            {
-                "Ticker"            : tickers_f,
-                "Weight (%)"        : (weights_f * 100).astype(float),
-                "Allocation (Rs.)"  : rupees_f.astype(float),
-            }
-        ).set_index("Ticker")
+        return pd.DataFrame({
+            "Ticker"          : tickers_f,
+            "Weight (%)"      : (weights_f * 100).astype(float),
+            "Allocation (Rs.)": rupees_f.astype(float),
+        }).set_index("Ticker")
 
     with col_sharpe:
         st.markdown(
@@ -1446,16 +1460,19 @@ with tab_terminal:
             use_container_width=True,
             height=min(400, (len(sharpe_alloc) + 2) * 38),
             column_config={
-                "Weight (%)"       : st.column_config.NumberColumn(
-                                        "Weight (%)", format="%.2f"),
-                "Allocation (Rs.)" : st.column_config.NumberColumn(
-                                        "Allocation (Rs.)", format="Rs. %,.0f"),
+                "Weight (%)"      : st.column_config.NumberColumn("Weight (%)", format="%.2f"),
+                "Allocation (Rs.)": st.column_config.NumberColumn("Allocation (Rs.)", format="Rs. %,.0f"),
             },
         )
-        st.caption(
-            f"Sum of weights: **{ws.sum()*100:.4f}%**  |  "
-            f"Total allocated: **Rs. {total_capital:,.0f}**"
+        # Download CSV button
+        st.download_button(
+            label="Download Max Sharpe Allocation (CSV)",
+            data=sharpe_alloc.reset_index().to_csv(index=False).encode("utf-8"),
+            file_name="max_sharpe_allocation.csv",
+            mime="text/csv",
+            use_container_width=True,
         )
+        st.caption(f"Sum of weights: **{ws.sum()*100:.4f}%**")
 
     with col_minvar:
         st.markdown(
@@ -1474,16 +1491,18 @@ with tab_terminal:
             use_container_width=True,
             height=min(400, (len(minvar_alloc) + 2) * 38),
             column_config={
-                "Weight (%)"       : st.column_config.NumberColumn(
-                                        "Weight (%)", format="%.2f"),
-                "Allocation (Rs.)" : st.column_config.NumberColumn(
-                                        "Allocation (Rs.)", format="Rs. %,.0f"),
+                "Weight (%)"      : st.column_config.NumberColumn("Weight (%)", format="%.2f"),
+                "Allocation (Rs.)": st.column_config.NumberColumn("Allocation (Rs.)", format="Rs. %,.0f"),
             },
         )
-        st.caption(
-            f"Sum of weights: **{wm.sum()*100:.4f}%**  |  "
-            f"Total allocated: **Rs. {total_capital:,.0f}**"
+        st.download_button(
+            label="Download Min Variance Allocation (CSV)",
+            data=minvar_alloc.reset_index().to_csv(index=False).encode("utf-8"),
+            file_name="min_variance_allocation.csv",
+            mime="text/csv",
+            use_container_width=True,
         )
+        st.caption(f"Sum of weights: **{wm.sum()*100:.4f}%**")
 
     st.markdown("---")
 
@@ -1494,36 +1513,26 @@ with tab_terminal:
     with left:
         st.markdown("### Max Sharpe Portfolio")
         a, b = st.columns(2)
-        a.metric("Annual Return",     f"{rs*100:.4f}%",
-                 f"{(rs-rm)*100:+.4f}% vs MinVar")
-        b.metric("Annual Volatility", f"{vs*100:.4f}%",
-                 f"{(vs-vm)*100:+.4f}% vs MinVar")
-        a.metric("Sharpe Ratio",      f"{ss:.4f}",
-                 f"{ss-sm:+.4f} vs MinVar")
+        a.metric("Annual Return",     f"{rs*100:.4f}%", f"{(rs-rm)*100:+.4f}% vs MinVar")
+        b.metric("Annual Volatility", f"{vs*100:.4f}%", f"{(vs-vm)*100:+.4f}% vs MinVar")
+        a.metric("Sharpe Ratio",      f"{ss:.4f}",      f"{ss-sm:+.4f} vs MinVar")
         b.metric("Risk-Free Rate",    f"{rf*100:.2f}%")
-        a.metric("95% Daily VaR",     f"{vars_*100:.4f}%",
-                 f"{(vars_-varm)*100:+.4f}% vs MinVar")
-        b.metric("95% Daily CVaR",    f"{cvars*100:.4f}%",
-                 f"{(cvars-cvarm)*100:+.4f}% vs MinVar")
+        a.metric("95% Daily VaR",     f"{vars_*100:.4f}%", f"{(vars_-varm)*100:+.4f}% vs MinVar")
+        b.metric("95% Daily CVaR",    f"{cvars*100:.4f}%", f"{(cvars-cvarm)*100:+.4f}% vs MinVar")
 
     with right:
         st.markdown("### Min Variance Portfolio")
         c, d = st.columns(2)
-        c.metric("Annual Return",     f"{rm*100:.4f}%",
-                 f"{(rm-rs)*100:+.4f}% vs MaxSR")
-        d.metric("Annual Volatility", f"{vm*100:.4f}%",
-                 f"{(vm-vs)*100:+.4f}% vs MaxSR")
-        c.metric("Sharpe Ratio",      f"{sm:.4f}",
-                 f"{sm-ss:+.4f} vs MaxSR")
+        c.metric("Annual Return",     f"{rm*100:.4f}%", f"{(rm-rs)*100:+.4f}% vs MaxSR")
+        d.metric("Annual Volatility", f"{vm*100:.4f}%", f"{(vm-vs)*100:+.4f}% vs MaxSR")
+        c.metric("Sharpe Ratio",      f"{sm:.4f}",      f"{sm-ss:+.4f} vs MaxSR")
         d.metric("Risk-Free Rate",    f"{rf*100:.2f}%")
-        c.metric("95% Daily VaR",     f"{varm*100:.4f}%",
-                 f"{(varm-vars_)*100:+.4f}% vs MaxSR")
-        d.metric("95% Daily CVaR",    f"{cvarm*100:.4f}%",
-                 f"{(cvarm-cvars)*100:+.4f}% vs MaxSR")
+        c.metric("95% Daily VaR",     f"{varm*100:.4f}%", f"{(varm-vars_)*100:+.4f}% vs MaxSR")
+        d.metric("95% Daily CVaR",    f"{cvarm*100:.4f}%", f"{(cvarm-cvars)*100:+.4f}% vs MaxSR")
 
     st.markdown("---")
 
-    # ── Core Metrics Breakdown ───────────────────────────────────────────────
+    # ── Core Metrics Table ───────────────────────────────────────────────────
     st.markdown("## Core Metrics Breakdown")
 
     metrics_df = pd.DataFrame(
@@ -1539,9 +1548,7 @@ with tab_terminal:
         dtype=float,
     )
     st.dataframe(
-        metrics_df,
-        use_container_width=True,
-        height=260,
+        metrics_df, use_container_width=True, height=260,
         column_config={
             "Max Sharpe"  : st.column_config.NumberColumn("Max Sharpe",   format="%.4f"),
             "Min Variance": st.column_config.NumberColumn("Min Variance", format="%.4f"),
@@ -1549,8 +1556,8 @@ with tab_terminal:
     )
     st.markdown("---")
 
-    # ── Full Asset Allocation Table ──────────────────────────────────────────
-    st.markdown("## Asset Allocation Detail")
+    # ── Asset Allocation Detail ───────────────────────────────────────────────
+    st.markdown("## Full Asset Allocation Detail")
 
     alloc_df = pd.DataFrame(
         {
@@ -1563,8 +1570,7 @@ with tab_terminal:
         dtype=float,
     )
     st.dataframe(
-        alloc_df,
-        use_container_width=True,
+        alloc_df, use_container_width=True,
         height=(len(names) + 2) * 38,
         column_config={
             col: st.column_config.NumberColumn(col, format="%.4f")
@@ -1576,7 +1582,7 @@ with tab_terminal:
     tc2.metric("Sum of Min Variance Weights", f"{wm.sum()*100:.6f}%")
     st.markdown("---")
 
-    # ── Individual Asset Risk Metrics ────────────────────────────────────────
+    # ── Individual Asset Risk ─────────────────────────────────────────────────
     st.markdown("## Individual Asset Risk Metrics")
 
     _var_l, _cvar_l = [], []
@@ -1588,17 +1594,16 @@ with tab_terminal:
 
     asset_risk_df = pd.DataFrame(
         {
-            "Annual Return (%)"  : (ar * 100).astype(float),
-            "Annual Vol (%)"     : (av * 100).astype(float),
-            "95% Daily VaR (%)"  : _var_l,
-            "95% Daily CVaR (%)" : _cvar_l,
+            "Annual Return (%)" : (ar * 100).astype(float),
+            "Annual Vol (%)"    : (av * 100).astype(float),
+            "95% Daily VaR (%)" : _var_l,
+            "95% Daily CVaR (%)": _cvar_l,
         },
         index=pd.Index(names, name="Ticker"),
         dtype=float,
     )
     st.dataframe(
-        asset_risk_df,
-        use_container_width=True,
+        asset_risk_df, use_container_width=True,
         height=(len(names) + 2) * 38,
         column_config={
             col: st.column_config.NumberColumn(col, format="%.4f")
@@ -1607,79 +1612,115 @@ with tab_terminal:
     )
     st.markdown("---")
 
-    # Footer
     st.markdown(
-        "<p style='text-align:center; color:#1a1a32; font-size:0.70rem; "
+        "<p style='text-align:center; color:#10103a; font-size:0.68rem; "
         "font-family:monospace; letter-spacing:0.05em;'>"
-        f"MARKOWITZ MVO  |  SCIPY SLSQP  |  95% HISTORICAL VAR/CVAR  |  "
+        "MARKOWITZ MVO  |  SCIPY SLSQP  |  95% HISTORICAL VAR/CVAR  |  "
         f"LOOKBACK: {lookback_label.upper()}  |  NIFTY 50 + HIGH-MOMENTUM (55 TICKERS)  |  "
-        "AUTO .NS REPAIR  |  SYNTHETIC MVN FALLBACK (756 DAYS)  |  "
-        "TIKHONOV REGULARISATION (LAM=1E-6)  |  DATA: YFINANCE  |  "
-        "FOR INFORMATIONAL PURPOSES ONLY — NOT FINANCIAL ADVICE"
+        "TIKHONOV REGULARISATION  |  YFINANCE  |  v3.0"
         "</p>",
         unsafe_allow_html=True,
     )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 3  — PLAIN-ENGLISH PORTFOLIO REPORT
+#  TAB 3 — INVESTMENT INSIGHTS
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_report:
 
-    st.markdown("## Plain-English Portfolio Report")
+    st.markdown("## Investment Insights")
     st.caption(
-        "This report translates the quantitative results from the Quant Terminal "
-        "into everyday language — the way a financial advisor would explain "
-        "your portfolio to you in a meeting."
+        "Your optimization results, translated into plain English. "
+        "No finance jargon. Just what the numbers actually mean for your money."
     )
 
     if "res" not in st.session_state:
-        st.info(
-            "Run the optimization from the Quant Terminal tab first to generate "
-            "this report.",
-            icon=":material/info:",
-        )
+        st.info("Run the optimization first.", icon=":material/info:")
         st.stop()
 
-    # ── Identify top 2-3 holdings per portfolio ───────────────────────────────
-    sharpe_sorted  = sorted(
-        zip(names, ws), key=lambda x: x[1], reverse=True
-    )
-    minvar_sorted  = sorted(
-        zip(names, wm), key=lambda x: x[1], reverse=True
-    )
-    top_sharpe     = [(n, w) for n, w in sharpe_sorted if w > 0.0001][:3]
-    top_minvar     = [(n, w) for n, w in minvar_sorted if w > 0.0001][:3]
-
-    # Dominant stock for Max Sharpe
+    # Pre-compute values
+    sharpe_sorted = sorted(zip(names, ws), key=lambda x: x[1], reverse=True)
+    minvar_sorted = sorted(zip(names, wm), key=lambda x: x[1], reverse=True)
+    top_sharpe    = [(n, w) for n, w in sharpe_sorted if w > 0.0001][:3]
+    top_minvar    = [(n, w) for n, w in minvar_sorted if w > 0.0001][:3]
     dominant_sharpe = top_sharpe[0][0] if top_sharpe else names[0]
-    dominant_pct_s  = top_sharpe[0][1] * 100 if top_sharpe else 0.0
     top2_names_s    = ", ".join(n for n, _ in top_sharpe[:2])
+    cap_rs_inr   = total_capital * rs
+    cap_rm_inr   = total_capital * rm
+    cap_var_s    = abs(vars_) * total_capital
+    cap_var_m    = abs(varm)  * total_capital
+    cap_cvar_s   = abs(cvars) * total_capital
 
-    # Dominant stock for Min Variance
-    dominant_minvar = top_minvar[0][0] if top_minvar else names[0]
-    dominant_pct_m  = top_minvar[0][1] * 100 if top_minvar else 0.0
-    top2_names_m    = ", ".join(n for n, _ in top_minvar[:2])
-
-    # Capital-based values
-    cap_rs_inr   = total_capital * rs          # expected gain (Max Sharpe)
-    cap_rm_inr   = total_capital * rm          # expected gain (Min Variance)
-    cap_var_s    = abs(vars_) * total_capital  # VaR rupees (Max Sharpe)
-    cap_var_m    = abs(varm) * total_capital   # VaR rupees (Min Variance)
-    cap_cvar_s   = abs(cvars) * total_capital  # CVaR rupees (Max Sharpe)
-
-    data_context = (
-        f"{'Simulated (Synthetic MVN)' if is_synth else 'Live NSE Data'}  "
-        f"|  Lookback: {lookback_label}  |  {len(names)} assets  |  "
-        f"Rs. {total_capital:,.0f} capital"
+    # ── Quick Comparison Card at the top ────────────────────────────────────
+    st.markdown("### Side-by-Side Comparison")
+    st.markdown(
+        "<div class='decision-box'>",
+        unsafe_allow_html=True,
     )
-    st.caption(f"**Data context:** {data_context}")
+    cmp1, cmp_div, cmp2 = st.columns([5, 1, 5])
+
+    with cmp1:
+        st.markdown(
+            "<div style='font-size:0.65rem; font-weight:700; color:#cc4444; "
+            "letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px;'>"
+            "Max Sharpe Portfolio</div>",
+            unsafe_allow_html=True,
+        )
+        bullets_s = [
+            (f"Expected annual return: {rs*100:.1f}%", "growth"),
+            (f"Annual risk (volatility): {vs*100:.1f}%", "risk"),
+            (f"Sharpe ratio: {ss:.2f}", "quality"),
+            (f"Max daily loss (95% VaR): Rs. {cap_var_s:,.0f}", "loss"),
+        ]
+        for text, _ in bullets_s:
+            st.markdown(
+                f"<div style='font-size:0.80rem; color:#aa6666; margin-bottom:6px; "
+                f"padding-left:10px; border-left:2px solid #441414;'>{text}</div>",
+                unsafe_allow_html=True,
+            )
+        st.markdown(
+            "<div style='font-size:0.72rem; color:#663333; margin-top:8px;'>"
+            "Best for: Long-term growth investors</div>",
+            unsafe_allow_html=True,
+        )
+
+    with cmp_div:
+        st.markdown(
+            "<div style='width:1px; background:#18183a; height:180px; "
+            "margin:0 auto; margin-top:20px;'></div>",
+            unsafe_allow_html=True,
+        )
+
+    with cmp2:
+        st.markdown(
+            "<div style='font-size:0.65rem; font-weight:700; color:#2a8a80; "
+            "letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px;'>"
+            "Min Variance Portfolio</div>",
+            unsafe_allow_html=True,
+        )
+        bullets_m = [
+            (f"Expected annual return: {rm*100:.1f}%", "growth"),
+            (f"Annual risk (volatility): {vm*100:.1f}%", "risk"),
+            (f"Sharpe ratio: {sm:.2f}", "quality"),
+            (f"Max daily loss (95% VaR): Rs. {cap_var_m:,.0f}", "loss"),
+        ]
+        for text, _ in bullets_m:
+            st.markdown(
+                f"<div style='font-size:0.80rem; color:#448877; margin-bottom:6px; "
+                f"padding-left:10px; border-left:2px solid #0a2a22;'>{text}</div>",
+                unsafe_allow_html=True,
+            )
+        st.markdown(
+            "<div style='font-size:0.72rem; color:#224433; margin-top:8px;'>"
+            "Best for: Conservative / short-horizon investors</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  Section A — Max Sharpe Portfolio
-    # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("### A.   What Your Best Balance Portfolio Actually Means")
+    # ── Section A — Max Sharpe in plain English ──────────────────────────────
+    st.markdown("### A.   What Your Best Balance Portfolio Means")
 
     with st.container():
         st.markdown(
@@ -1687,49 +1728,46 @@ with tab_report:
             "<h4>Max Sharpe Portfolio — Best Risk-Adjusted Balance</h4>",
             unsafe_allow_html=True,
         )
+        # Pull quote
+        st.markdown(
+            f"<div class='pull-quote'>Rs. {total_capital + cap_rs_inr:,.0f}</div>"
+            f"<div class='pull-quote-label'>Projected portfolio value after 1 year "
+            f"(Rs. {total_capital:,.0f} invested at {rs*100:.1f}% expected return)</div>",
+            unsafe_allow_html=True,
+        )
 
-        # Metric strip
         ra1, ra2, ra3 = st.columns(3)
-        ra1.metric("Expected Annual Return", f"{rs*100:.2f}%")
+        ra1.metric("Expected Annual Return",   f"{rs*100:.2f}%")
         ra2.metric("Annual Risk (Volatility)", f"{vs*100:.2f}%")
-        ra3.metric("Sharpe Ratio", f"{ss:.3f}")
+        ra3.metric("Sharpe Ratio",             f"{ss:.3f}")
 
         if rs > 0:
             narrative_a = (
                 f"If you invest **Rs. {total_capital:,.0f}** into this portfolio, "
-                f"the mathematical model — built from {lookback_label.lower()} of "
-                f"{'simulated' if is_synth else 'real'} market data — projects an "
-                f"expected annual gain of approximately **Rs. {cap_rs_inr:,.0f}** "
-                f"({rs*100:.1f}% return). In practical terms, that means your "
-                f"Rs. {total_capital:,.0f} could grow to roughly "
-                f"**Rs. {total_capital + cap_rs_inr:,.0f}** after one year, "
-                f"assuming conditions stay close to the historical average.\n\n"
-                f"However, this is not a guaranteed outcome. The portfolio carries a "
-                f"risk (annual volatility) of **{vs*100:.1f}%**. Think of volatility "
-                f"as the normal range of ups and downs your investment will experience "
-                f"throughout the year. On a good year you could exceed the expected "
-                f"return; on a poor year your portfolio could decline. The **Sharpe "
-                f"Ratio of {ss:.2f}** tells you that for every unit of risk you are "
-                f"taking on, you are being compensated with {ss:.2f} units of return "
-                f"above the risk-free rate ({rf*100:.2f}%). A Sharpe above 1.0 is "
-                f"generally considered good; above 2.0 is excellent."
+                f"the optimizer — working from {lookback_label.lower()} of "
+                f"{'simulated' if is_synth else 'real NSE'} market data — projects "
+                f"an expected annual gain of approximately **Rs. {cap_rs_inr:,.0f}** "
+                f"({rs*100:.1f}% return). That would grow your investment to roughly "
+                f"**Rs. {total_capital + cap_rs_inr:,.0f}** in one year.\n\n"
+                f"This is not a guarantee. The annual volatility of **{vs*100:.1f}%** "
+                f"means the actual outcome could be better or worse. Think of volatility "
+                f"as the normal range of ups and downs throughout the year.\n\n"
+                f"The **Sharpe Ratio of {ss:.2f}** means you earn {ss:.2f} units of "
+                f"excess return for every unit of risk you take. "
+                f"{'Above 1.0 is generally considered good.' if ss > 1.0 else 'Below 1.0 means the return may not fully compensate for the risk taken.'}"
             )
         else:
             narrative_a = (
-                f"This portfolio has a negative expected return of **{rs*100:.2f}%** "
-                f"for the selected lookback window. This may reflect a difficult market "
-                f"period in the data. The Sharpe Ratio of {ss:.2f} should be interpreted "
-                f"with caution. Consider extending the lookback period or changing the "
-                f"asset selection to include stocks with better historical performance."
+                f"This portfolio shows a negative expected return of **{rs*100:.2f}%** "
+                f"for the {lookback_label.lower()} window selected. This may reflect a "
+                f"difficult market period in the data. Consider extending the lookback "
+                f"period or changing the stock selection."
             )
-
         st.markdown(narrative_a)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  Section B — Min Variance Portfolio
-    # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("### B.   What the Safest Portfolio Means, and Why It Is Safer")
+    # ── Section B — Min Variance in plain English ────────────────────────────
+    st.markdown("### B.   What the Safest Portfolio Means")
 
     with st.container():
         st.markdown(
@@ -1737,39 +1775,41 @@ with tab_report:
             "<h4>Min Variance Portfolio — Lowest Achievable Risk</h4>",
             unsafe_allow_html=True,
         )
+        # Pull quote
+        st.markdown(
+            f"<div class='pull-quote'>{vm*100:.1f}%</div>"
+            f"<div class='pull-quote-label'>Annual volatility — the lowest achievable "
+            f"risk with your selected stocks</div>",
+            unsafe_allow_html=True,
+        )
 
         rb1, rb2, rb3 = st.columns(3)
-        rb1.metric("Expected Annual Return", f"{rm*100:.2f}%")
+        rb1.metric("Expected Annual Return",   f"{rm*100:.2f}%")
         rb2.metric("Annual Risk (Volatility)", f"{vm*100:.2f}%")
-        rb3.metric("Sharpe Ratio", f"{sm:.3f}")
+        rb3.metric("Sharpe Ratio",             f"{sm:.3f}")
 
-        vol_diff  = (vs - vm) * 100
-        ret_diff  = (rs - rm) * 100
-
+        vol_diff = (vs - vm) * 100
         narrative_b = (
-            f"The Safest Portfolio (Minimum Variance) is designed for one purpose: "
-            f"**minimise how much your portfolio swings in value**, regardless of return. "
-            f"It achieves an annual volatility of **{vm*100:.1f}%** — "
-            f"that is **{abs(vol_diff):.1f} percentage points {'lower' if vol_diff > 0 else 'higher'} "
-            f"than the Max Sharpe portfolio** ({vs*100:.1f}%).\n\n"
-            f"The trade-off is return: this portfolio targets **{rm*100:.1f}% annual return**, "
-            f"versus {rs*100:.1f}% for the Max Sharpe. For your Rs. {total_capital:,.0f} "
-            f"investment, the expected gain is approximately **Rs. {cap_rm_inr:,.0f}** "
-            f"— Rs. {abs(cap_rs_inr - cap_rm_inr):,.0f} "
-            f"{'less' if cap_rs_inr > cap_rm_inr else 'more'} than the Max Sharpe portfolio.\n\n"
-            f"**Why choose this?** If you are a conservative investor, nearing retirement, "
-            f"or simply cannot stomach large daily fluctuations in your portfolio value, "
-            f"the Min Variance portfolio will let you sleep better at night. You sacrifice "
-            f"some upside potential, but you significantly reduce the risk of a painful "
-            f"drawdown in a volatile market."
+            f"The Safest Portfolio is built for one purpose: "
+            f"**minimise how much your portfolio swings in value**. "
+            f"It achieves a volatility of **{vm*100:.1f}%** — "
+            f"**{abs(vol_diff):.1f} percentage points "
+            f"{'lower' if vol_diff > 0 else 'higher'} than the Max Sharpe portfolio** "
+            f"({vs*100:.1f}%).\n\n"
+            f"The trade-off is return. This portfolio targets **{rm*100:.1f}% annually** "
+            f"versus {rs*100:.1f}% for Max Sharpe. On Rs. {total_capital:,.0f}, "
+            f"that is a difference of roughly **Rs. {abs(cap_rs_inr - cap_rm_inr):,.0f} "
+            f"per year** in expected gain.\n\n"
+            f"**Who should choose this?** Conservative investors, people closer to "
+            f"needing the money, or anyone who cannot handle seeing large daily swings "
+            f"in their portfolio value. You give up some upside, but you significantly "
+            f"reduce the chance of a painful drawdown."
         )
         st.markdown(narrative_b)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  Section C — VaR in Rupee Terms
-    # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("### C.   Your Value at Risk in Actual Rupees")
+    # ── Section C — VaR in Rupees ─────────────────────────────────────────────
+    st.markdown("### C.   Your Worst-Case Daily Loss in Actual Rupees")
 
     with st.container():
         st.markdown(
@@ -1777,40 +1817,40 @@ with tab_report:
             "<h4>95% Historical Value at Risk — Daily Loss Threshold</h4>",
             unsafe_allow_html=True,
         )
+        # Pull quote
+        st.markdown(
+            f"<div class='pull-quote'>Rs. {cap_var_s:,.0f}</div>"
+            f"<div class='pull-quote-label'>Max Sharpe worst-case single-day loss "
+            f"(95% confidence, based on Rs. {total_capital:,.0f} invested)</div>",
+            unsafe_allow_html=True,
+        )
 
         rc1, rc2, rc3, rc4 = st.columns(4)
-        rc1.metric("Max Sharpe VaR (%)",   f"{vars_*100:.3f}%")
-        rc2.metric("Max Sharpe VaR (Rs.)", f"Rs. {cap_var_s:,.0f}")
-        rc3.metric("Min Variance VaR (%)", f"{varm*100:.3f}%")
+        rc1.metric("Max Sharpe VaR (%)",    f"{vars_*100:.3f}%")
+        rc2.metric("Max Sharpe VaR (Rs.)",  f"Rs. {cap_var_s:,.0f}")
+        rc3.metric("Min Variance VaR (%)",  f"{varm*100:.3f}%")
         rc4.metric("Min Variance VaR (Rs.)",f"Rs. {cap_var_m:,.0f}")
 
         narrative_c = (
-            f"**Value at Risk (VaR)** answers a simple question: "
-            f"*How much money could I lose on a really bad day?*\n\n"
-            f"Based on your **Rs. {total_capital:,.0f}** investment in the "
-            f"**Max Sharpe portfolio**, the 95% daily VaR is approximately "
-            f"**Rs. {cap_var_s:,.0f}** ({abs(vars_*100):.3f}% of capital). "
-            f"This means that on **95 out of every 100 trading days**, your "
-            f"single-day loss should NOT exceed Rs. {cap_var_s:,.0f}. "
-            f"The remaining 5% of days — roughly 12-13 trading days per year — "
-            f"could see losses larger than this threshold.\n\n"
-            f"For the **Min Variance portfolio**, that same protection applies at "
-            f"**Rs. {cap_var_m:,.0f} per day** ({abs(varm*100):.3f}%), which is "
+            f"**Value at Risk (VaR)** answers: *How much could I lose on a really bad day?*\n\n"
+            f"For your **Rs. {total_capital:,.0f}** in the Max Sharpe portfolio, "
+            f"the 95% daily VaR is **Rs. {cap_var_s:,.0f}** ({abs(vars_*100):.3f}%). "
+            f"On **95 out of every 100 trading days**, your single-day loss will NOT "
+            f"exceed this amount. The remaining 5 days per 100 — roughly 12 to 13 days "
+            f"a year — could see losses beyond this.\n\n"
+            f"The Min Variance portfolio's daily VaR is **Rs. {cap_var_m:,.0f}** — "
             f"Rs. {abs(cap_var_s - cap_var_m):,.0f} "
-            f"{'less' if cap_var_m < cap_var_s else 'more'} per day — confirming "
-            f"that the Safest Portfolio is genuinely safer on a daily loss basis too.\n\n"
-            f"The CVaR (Conditional VaR, or Expected Shortfall) for Max Sharpe is "
-            f"**Rs. {cap_cvar_s:,.0f}**, which is the *average* loss you would "
-            f"expect on those rare worst-case days when the VaR threshold is breached. "
-            f"This is the number stress-testing frameworks use to size capital buffers."
+            f"{'less' if cap_var_m < cap_var_s else 'more'} per day, confirming it "
+            f"is genuinely safer on a day-to-day basis too.\n\n"
+            f"The CVaR of Rs. {cap_cvar_s:,.0f} is what you would expect to lose "
+            f"*on average* on those rare worst-case days beyond the VaR threshold. "
+            f"This is the figure professional risk managers use for stress-testing."
         )
         st.markdown(narrative_c)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  Section D — Why the Optimizer Concentrated in Top Holdings
-    # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("### D.   Why Certain Stocks Dominate Your Final Allocation")
+    # ── Section D — Why Concentration ────────────────────────────────────────
+    st.markdown("### D.   Why Certain Stocks Dominate the Allocation")
 
     with st.container():
         st.markdown(
@@ -1821,72 +1861,81 @@ with tab_report:
 
         rd1, rd2 = st.columns(2)
         with rd1:
-            st.markdown("**Max Sharpe — Top Holdings**")
+            st.markdown(
+                "<div style='font-size:0.68rem; font-weight:700; color:#cc4444; "
+                "letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px;'>"
+                "Max Sharpe — Top Holdings</div>",
+                unsafe_allow_html=True,
+            )
             for i, (nm, wt) in enumerate(top_sharpe, 1):
+                # Progress bar showing weight
+                bar_w = min(100, int(wt * 400))
                 st.markdown(
+                    f"<div style='margin-bottom:8px;'>"
                     f"<div style='display:flex; justify-content:space-between; "
-                    f"padding:4px 0; border-bottom:1px solid #14143a;'>"
-                    f"<span style='color:#8888cc; font-size:0.82rem; font-family:monospace;'>"
-                    f"#{i}  {nm}</span>"
-                    f"<span style='color:#EF5350; font-size:0.82rem; font-weight:700;'>"
-                    f"{wt*100:.1f}%  —  Rs. {wt*total_capital:,.0f}</span></div>",
+                    f"font-size:0.78rem; margin-bottom:3px;'>"
+                    f"<span style='color:#8888cc; font-family:monospace;'>#{i} {nm}</span>"
+                    f"<span style='color:#EF5350; font-weight:700;'>"
+                    f"{wt*100:.1f}%  —  Rs. {wt*total_capital:,.0f}</span></div>"
+                    f"<div class='risk-bar-wrap'><div style='height:4px; border-radius:4px; "
+                    f"background:#EF5350; width:{bar_w}%;'></div></div>"
+                    f"</div>",
                     unsafe_allow_html=True,
                 )
         with rd2:
-            st.markdown("**Min Variance — Top Holdings**")
+            st.markdown(
+                "<div style='font-size:0.68rem; font-weight:700; color:#2a8a80; "
+                "letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px;'>"
+                "Min Variance — Top Holdings</div>",
+                unsafe_allow_html=True,
+            )
             for i, (nm, wt) in enumerate(top_minvar, 1):
+                bar_w = min(100, int(wt * 400))
                 st.markdown(
+                    f"<div style='margin-bottom:8px;'>"
                     f"<div style='display:flex; justify-content:space-between; "
-                    f"padding:4px 0; border-bottom:1px solid #14143a;'>"
-                    f"<span style='color:#8888cc; font-size:0.82rem; font-family:monospace;'>"
-                    f"#{i}  {nm}</span>"
-                    f"<span style='color:#26A69A; font-size:0.82rem; font-weight:700;'>"
-                    f"{wt*100:.1f}%  —  Rs. {wt*total_capital:,.0f}</span></div>",
+                    f"font-size:0.78rem; margin-bottom:3px;'>"
+                    f"<span style='color:#8888cc; font-family:monospace;'>#{i} {nm}</span>"
+                    f"<span style='color:#26A69A; font-weight:700;'>"
+                    f"{wt*100:.1f}%  —  Rs. {wt*total_capital:,.0f}</span></div>"
+                    f"<div class='risk-bar-wrap'><div style='height:4px; border-radius:4px; "
+                    f"background:#26A69A; width:{bar_w}%;'></div></div>"
+                    f"</div>",
                     unsafe_allow_html=True,
                 )
 
-        st.markdown("")  # spacer
-
+        st.markdown("")
         narrative_d = (
-            f"You might look at your portfolio and wonder: *why is so much money "
-            f"concentrated in just {len(top_sharpe)} or {len(top_minvar)} stocks?*\n\n"
-            f"The answer lies in the mathematics of the SLSQP optimizer. It is "
-            f"solving a precise mathematical problem: *given the historical returns "
-            f"and correlations of all {len(names)} selected stocks, find the exact "
-            f"combination of weights that maximises the Sharpe ratio (or minimises "
-            f"variance).* The optimizer does not care about equal distribution — "
-            f"it cares about mathematical efficiency.\n\n"
-            f"**{top2_names_s}** emerged as dominant holdings in the Max Sharpe "
-            f"portfolio because, historically over the selected "
-            f"{lookback_label.lower()} period, they offered the best combination "
-            f"of high return AND low correlation with each other. When two assets "
-            f"move in different directions (low or negative correlation), holding "
-            f"both simultaneously *reduces total portfolio risk without sacrificing "
-            f"proportionate return* — this is the core of Markowitz diversification.\n\n"
-            f"Stocks with lower individual Sharpe ratios, or those highly correlated "
-            f"with the dominant holdings, received near-zero weights because they "
-            f"would have added risk without adding proportionate return. Think of it "
-            f"this way: if two stocks move almost identically, there is no "
-            f"diversification benefit to owning both — the optimizer simply picks "
-            f"the better one.\n\n"
-            f"**Important caveat:** These results are based on *historical* data "
-            f"from the {lookback_label.lower()} window. Past correlations and returns "
-            f"do not guarantee future performance. Longer lookback periods generally "
-            f"produce more stable and reliable weight estimates."
+            f"You might wonder: *why is so much money concentrated in just a few stocks?*\n\n"
+            f"The SLSQP optimizer solves a precise mathematical problem: *given the historical "
+            f"returns and correlations of all {len(names)} stocks, find the exact weights that "
+            f"maximise the Sharpe ratio.* It does not care about equal distribution — it cares "
+            f"about efficiency.\n\n"
+            f"**{top2_names_s}** dominate the Max Sharpe portfolio because, over the last "
+            f"{lookback_label.lower()}, they offered the best combination of high individual "
+            f"return AND low correlation with each other. When two stocks move in different "
+            f"directions, holding both simultaneously reduces total portfolio risk without "
+            f"sacrificing proportionate return — this is the mathematical heart of "
+            f"Markowitz diversification.\n\n"
+            f"Stocks that received near-zero weights either had lower risk-adjusted returns, "
+            f"or they were too correlated with the dominant holdings — adding them would have "
+            f"increased risk without meaningfully increasing return.\n\n"
+            f"**Important:** These allocations are based on *historical* data from the "
+            f"{lookback_label.lower()} window. Past correlations do not guarantee future "
+            f"performance. Longer lookback periods generally produce more stable estimates."
         )
         st.markdown(narrative_d)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Disclaimer
+    # Disclaimer footer
     st.markdown("---")
     st.markdown(
-        "<p style='text-align:center; color:#1e1e38; font-size:0.70rem; "
+        "<p style='text-align:center; color:#14143a; font-size:0.68rem; "
         "font-family:monospace; letter-spacing:0.05em;'>"
-        "THIS REPORT IS FOR EDUCATIONAL AND INFORMATIONAL PURPOSES ONLY. "
-        "IT DOES NOT CONSTITUTE FINANCIAL ADVICE, AN INVESTMENT RECOMMENDATION, "
-        "OR A SOLICITATION TO BUY OR SELL ANY SECURITY. "
-        "PAST PERFORMANCE IS NOT INDICATIVE OF FUTURE RESULTS. "
-        "CONSULT A QUALIFIED FINANCIAL ADVISOR BEFORE MAKING INVESTMENT DECISIONS."
+        "FOR EDUCATIONAL AND INFORMATIONAL PURPOSES ONLY  |  "
+        "NOT FINANCIAL ADVICE  |  NOT AN INVESTMENT RECOMMENDATION  |  "
+        "PAST PERFORMANCE IS NOT INDICATIVE OF FUTURE RESULTS  |  "
+        "CONSULT A QUALIFIED FINANCIAL ADVISOR BEFORE INVESTING"
         "</p>",
         unsafe_allow_html=True,
     )
