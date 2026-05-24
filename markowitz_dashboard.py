@@ -55,22 +55,6 @@ st.set_page_config(
     initial_sidebar_state = "expanded",
 )
 
-hide_streamlit_ui = """
-<style>
-/* Upar ka header aur Fork/Menu button hide karne ke liye */
-header {visibility: hidden !important;}
-[data-testid="stToolbar"] {visibility: hidden !important;}
-
-/* Neeche ka footer aur Profile badge hide karne ke liye */
-footer {visibility: hidden !important;}
-[data-testid="stAppDeployButton"] {display: none !important;}
-[data-testid="stCreatorProfile"] {display: none !important;}
-.viewerBadge_container__1QSob {display: none !important;}
-</style>
-"""
-
-st.markdown(hide_streamlit_ui, unsafe_allow_html=True)
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  §A  NIFTY SECTOR POOL  — 55-ticker NSE universe
 # ─────────────────────────────────────────────────────────────────────────────
